@@ -5,10 +5,11 @@ A Rust tool that periodically scrapes multiple Inflyte campaign URLs and monitor
 ## Features
 
 * 🔍 **Web Scraping** - Automatically scrapes multiple Inflyte campaign pages at configurable intervals
-* 📊 **DJ Detection** - Extracts DJ names from the Support section for each campaign
+* 📊 **DJ Detection** - Extracts DJ names, comments, and star ratings from the Support section for each campaign
+* ⭐ **Comment & Rating Tracking** - Monitors DJ feedback including text comments and star ratings
 * 🎯 **Multi-Campaign Support** - Monitor multiple Inflyte campaigns simultaneously
 * ☁️ **Cloud Storage** - Stores DJ lists per campaign in Azure Blob Storage for persistent, cloud-based tracking
-* 📧 **Email Alerts** - Sends beautiful HTML email notifications via Mailgun with campaign details
+* 📧 **Email Alerts** - Sends beautiful HTML email notifications via Mailgun with campaign details, comments, and ratings
 * ⚡ **Async Architecture** - Efficient using Tokio runtime
 * 🔒 **Secure Config** - All sensitive data via environment variables
 
@@ -185,9 +186,10 @@ Initial run for campaign2 - found 15 DJs
 ```
 Checking pmqtne for new DJs...
 
-🚨 ALERT: New DJs detected for pmqtne!
+🚨 ALERT: New DJ support detected for pmqtne!
 ═══════════════════════════════
-  ✨ New DJ Name 1
+  ✨ Vitor Saguanza ⭐⭐⭐⭐⭐
+     💬 "Beautiful vibe!"
   ✨ New DJ Name 2
 ═══════════════════════════════
 
@@ -206,9 +208,9 @@ No new DJs found for campaign2. Total: 15
 
 ## Email Notification Example
 
-When new DJs are detected, you'll receive a beautifully formatted HTML email:
+When new DJs are detected, you'll receive a beautifully formatted HTML email with comments and star ratings:
 
-**Subject:** 🚨 2 New DJs Added to Inflyte Campaign 'pmqtne'
+**Subject:** 🚨 2 New DJ Support/Comment to Inflyte Campaign 'pmqtne'
 
 **Body:**
 
@@ -220,8 +222,9 @@ New DJs have been added to the Support section!
 
 Campaign: pmqtne
 
-New Additions (2)
-  ✨ New DJ Name 1
+New Support (2)
+  ✨ Vitor Saguanza ⭐⭐⭐⭐⭐
+     "Beautiful vibe!"
   ✨ New DJ Name 2
 
 View the full list at: https://inflyteapp.com/r/pmqtne

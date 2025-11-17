@@ -21,6 +21,7 @@ struct Args {
 struct Campaign {
     url: String,
     name: String,
+    track_title: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -57,7 +58,11 @@ impl Config {
             .into_iter()
             .map(|url| {
                 let name = extract_campaign_name(&url);
-                Campaign { url, name }
+                Campaign {
+                    url,
+                    name,
+                    track_title: None,
+                }
             })
             .collect();
 
@@ -85,9 +90,16 @@ impl Config {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
+struct DjSupport {
+    name: String,
+    comment: Option<String>,
+    stars: Option<u8>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct DjStorage {
-    djs: HashSet<String>,
+    djs: HashSet<DjSupport>,
 }
 
 /// Extract campaign name from URL (e.g., https://inflyteapp.com/r/pmqtne -> pmqtne)
@@ -99,13 +111,34 @@ fn extract_campaign_name(url: &str) -> String {
         .to_string()
 }
 
+/// Extract track artist and title from the webpage
+async fn fetch_track_title(url: &str) -> Option<String> {
+    let response = reqwest::get(url).await.ok()?.text().await.ok()?;
+    let document = Html::parse_document(&response);
+
+    // Look for h1 tag which typically contains "Artist - Track Title"
+    let h1_selector = Selector::parse("h1").ok()?;
+
+    for element in document.select(&h1_selector) {
+        let text = element.text().collect::<String>();
+        let trimmed = text.trim();
+
+        // Skip if it's empty or looks like a navigation element
+        if !trimmed.is_empty() && trimmed.contains('-') && !trimmed.contains("Inflyte") {
+            return Some(trimmed.to_string());
+        }
+    }
+
+    None
+}
+
 /// Get blob name for a campaign
 fn get_blob_name(config: &Config, campaign: &Campaign) -> String {
     format!("{}_{}.json", config.blob_name_prefix, campaign.name)
 }
 
-/// Fetch the webpage and extract DJ names from the Support section
-async fn fetch_dj_list(url: &str) -> Result<HashSet<String>> {
+/// Fetch the webpage and extract DJ names, comments, and star ratings from the Support section
+async fn fetch_dj_list(url: &str) -> Result<HashSet<DjSupport>> {
     let response = reqwest::get(url)
         .await
         .context("Failed to fetch webpage")?
@@ -125,26 +158,79 @@ async fn fetch_dj_list(url: &str) -> Result<HashSet<String>> {
             if text.trim() == "Support" {
                 in_support_section = true;
                 continue;
-            } else if in_support_section {
+            } else if in_support_section && text.trim() != "Support" {
                 // We've hit another h3, so we're out of the Support section
                 break;
             }
         }
 
-        // If we're in the support section, extract DJ names
-        if in_support_section && element.text().next().is_some() {
+        // If we're in the support section, extract DJ information
+        if in_support_section {
             let text = element.text().collect::<String>();
-            if !text.trim().is_empty() && text.contains("Support from") {
-                // Parse the DJ names (they're separated by commas and "and")
+
+            // Look for individual DJ entries with comments (e.g., "Vitor Saguanza Beautiful vibe!")
+            if element.value().name() == "div" || element.value().name() == "p" {
+                let trimmed = text.trim();
+
+                // Skip empty content and "Support from" lists
+                if trimmed.is_empty()
+                    || trimmed.starts_with("Get Mad")
+                    || trimmed.contains("Currently subscribed")
+                {
+                    continue;
+                }
+
+                // Try to parse individual DJ support with comment
+                // Format: "DJ Name Comment text" or just "DJ Name"
+                let parts: Vec<&str> = trimmed.splitn(2, char::is_whitespace).collect();
+                if parts.len() >= 1 && !trimmed.contains("Support from") {
+                    let potential_name = parts[0].trim();
+                    let comment = if parts.len() > 1 {
+                        let comment_text = parts[1].trim();
+                        if !comment_text.is_empty() && comment_text.len() < 200 {
+                            Some(comment_text.to_string())
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+
+                    // Count stars in the text
+                    let stars = text.matches('⭐').count() as u8;
+                    let stars = if stars > 0 { Some(stars) } else { None };
+
+                    // Only add if it looks like a DJ name (not too long, doesn't contain certain keywords)
+                    if potential_name.len() > 0
+                        && potential_name.len() < 50
+                        && !potential_name.contains(',')
+                        && !potential_name.contains(" and ")
+                        && (comment.is_some() || stars.is_some())
+                    {
+                        djs.insert(DjSupport {
+                            name: potential_name.to_string(),
+                            comment,
+                            stars,
+                        });
+                    }
+                }
+            }
+
+            // Also handle the "Support from" list (DJs without individual comments)
+            if text.contains("Support from") {
                 let names_part = text.replace("Support from", "").replace(" and ", ", ");
 
                 for name in names_part.split(',') {
                     let cleaned = name.trim();
-                    if !cleaned.is_empty() && !cleaned.starts_with("Get Mad") {
-                        djs.insert(cleaned.to_string());
+                    if !cleaned.is_empty() && !cleaned.starts_with("Get Mad") && cleaned.len() < 50
+                    {
+                        djs.insert(DjSupport {
+                            name: cleaned.to_string(),
+                            comment: None,
+                            stars: None,
+                        });
                     }
                 }
-                break; // We found the support list
             }
         }
     }
@@ -153,7 +239,7 @@ async fn fetch_dj_list(url: &str) -> Result<HashSet<String>> {
 }
 
 /// Load the previously saved DJ list from Azure Blob Storage
-async fn load_previous_djs(config: &Config, campaign: &Campaign) -> Result<HashSet<String>> {
+async fn load_previous_djs(config: &Config, campaign: &Campaign) -> Result<HashSet<DjSupport>> {
     let container_client = BlobServiceClient::new(
         config.storage_account.clone(),
         config.storage_credentials.clone(),
@@ -167,9 +253,35 @@ async fn load_previous_djs(config: &Config, campaign: &Campaign) -> Result<HashS
         Ok(content) => {
             let content_str =
                 String::from_utf8(content).context("Failed to parse blob content as UTF-8")?;
-            let storage: DjStorage =
-                serde_json::from_str(&content_str).context("Failed to parse DJ storage JSON")?;
-            Ok(storage.djs)
+
+            // Try to parse as new format first
+            if let Ok(storage) = serde_json::from_str::<DjStorage>(&content_str) {
+                Ok(storage.djs)
+            } else {
+                // Try to migrate from old format (HashSet<String>)
+                #[derive(Deserialize)]
+                struct OldDjStorage {
+                    djs: HashSet<String>,
+                }
+
+                if let Ok(old_storage) = serde_json::from_str::<OldDjStorage>(&content_str) {
+                    println!(
+                        "Migrating old DJ storage format to new format with comment/rating support..."
+                    );
+                    let migrated: HashSet<DjSupport> = old_storage
+                        .djs
+                        .into_iter()
+                        .map(|name| DjSupport {
+                            name,
+                            comment: None,
+                            stars: None,
+                        })
+                        .collect();
+                    Ok(migrated)
+                } else {
+                    anyhow::bail!("Failed to parse DJ storage JSON in either old or new format")
+                }
+            }
         }
         Err(_) => {
             // Blob doesn't exist yet (first run)
@@ -179,7 +291,7 @@ async fn load_previous_djs(config: &Config, campaign: &Campaign) -> Result<HashS
 }
 
 /// Save the current DJ list to Azure Blob Storage
-async fn save_djs(config: &Config, campaign: &Campaign, djs: &HashSet<String>) -> Result<()> {
+async fn save_djs(config: &Config, campaign: &Campaign, djs: &HashSet<DjSupport>) -> Result<()> {
     let storage = DjStorage { djs: djs.clone() };
     let json = serde_json::to_string_pretty(&storage).context("Failed to serialize DJ list")?;
 
@@ -203,17 +315,38 @@ async fn save_djs(config: &Config, campaign: &Campaign, djs: &HashSet<String>) -
 }
 
 /// Send email notification via Mailgun API
-async fn send_email_alert(config: &Config, campaign: &Campaign, new_djs: &[&String]) -> Result<()> {
+async fn send_email_alert(
+    config: &Config,
+    campaign: &Campaign,
+    new_djs: &[&DjSupport],
+) -> Result<()> {
     let dj_list = new_djs
         .iter()
-        .map(|dj| format!("  • {}", dj))
+        .map(|dj| {
+            let mut line = format!("  • {}", dj.name);
+            if let Some(stars) = dj.stars {
+                line.push_str(&format!(" ({}⭐)", "⭐".repeat(stars as usize)));
+            }
+            if let Some(comment) = &dj.comment {
+                line.push_str(&format!(" - \"{}\"", comment));
+            }
+            line
+        })
         .collect::<Vec<_>>()
         .join("\n");
 
     let subject = format!(
-        "🚨 {} New DJ{} Added to Inflyte Campaign '{}'",
+        "🚨 {} New DJ{} {} to Inflyte Campaign '{}'",
         new_djs.len(),
         if new_djs.len() == 1 { "" } else { "s" },
+        if new_djs
+            .iter()
+            .any(|dj| dj.comment.is_some() || dj.stars.is_some())
+        {
+            "Support/Comment"
+        } else {
+            "Added"
+        },
         campaign.name
     );
 
@@ -241,7 +374,7 @@ async fn send_email_alert(config: &Config, campaign: &Campaign, new_djs: &[&Stri
             <p><strong>New DJs have been added to the Support section!</strong></p>
             <p class="campaign">Campaign: {}</p>
             <div class="dj-list">
-                <h3>New Additions ({})</h3>
+                <h3>New Support ({})</h3>
 {}
             </div>
             <p>View the full list at: <a href="{}">{}</a></p>
@@ -256,7 +389,27 @@ async fn send_email_alert(config: &Config, campaign: &Campaign, new_djs: &[&Stri
         new_djs.len(),
         new_djs
             .iter()
-            .map(|dj| format!("                <div class=\"dj-item\">✨ {}</div>", dj))
+            .map(|dj| {
+                let mut entry = format!(
+                    "                <div class=\"dj-item\"><strong>✨ {}</strong>",
+                    dj.name
+                );
+                if let Some(stars) = dj.stars {
+                    entry.push_str(&format!(
+                        " <span style=\"color: #FFD700;\">{}</span>",
+                        "⭐".repeat(stars as usize)
+                    ));
+                }
+                if let Some(comment) = &dj.comment {
+                    entry.push_str(&format!(
+                        "<br/><em style=\"color: #666; margin-left: 20px;\">\"{}\"{}</em>",
+                        comment, "</div>"
+                    ));
+                } else {
+                    entry.push_str("</div>");
+                }
+                entry
+            })
             .collect::<Vec<_>>()
             .join("\n"),
         &campaign.url,
@@ -264,7 +417,7 @@ async fn send_email_alert(config: &Config, campaign: &Campaign, new_djs: &[&Stri
     );
 
     let text_body = format!(
-        "🚨 New DJs detected on Inflyte!\n\nCampaign: {}\n\n{}\n\nTotal new additions: {}\n\nView at: {}",
+        "🚨 New DJ support detected on Inflyte!\n\nCampaign: {}\n\n{}\n\nTotal new additions: {}\n\nView at: {}",
         campaign.name,
         dj_list,
         new_djs.len(),
@@ -324,10 +477,17 @@ async fn check_for_new_djs(config: &Config, campaign: &Campaign) -> Result<()> {
         let new_djs: Vec<_> = current_djs.difference(&previous_djs).collect();
 
         if !new_djs.is_empty() {
-            println!("\n🚨 ALERT: New DJs detected for {}!", campaign.name);
+            println!("\n🚨 ALERT: New DJ support detected for {}!", campaign.name);
             println!("═══════════════════════════════");
             for dj in &new_djs {
-                println!("  ✨ {}", dj);
+                let mut line = format!("  ✨ {}", dj.name);
+                if let Some(stars) = dj.stars {
+                    line.push_str(&format!(" {}", "⭐".repeat(stars as usize)));
+                }
+                if let Some(comment) = &dj.comment {
+                    line.push_str(&format!("\n     💬 \"{}\"", comment));
+                }
+                println!("{}", line);
             }
             println!("═══════════════════════════════\n");
 
@@ -343,6 +503,21 @@ async fn check_for_new_djs(config: &Config, campaign: &Campaign) -> Result<()> {
                 campaign.name,
                 current_djs.len()
             );
+
+            // Debug: Show a few examples of what we're tracking
+            if !current_djs.is_empty() {
+                println!("Sample of tracked DJs:");
+                for (i, dj) in current_djs.iter().take(5).enumerate() {
+                    let mut line = format!("  {}. {}", i + 1, dj.name);
+                    if let Some(stars) = dj.stars {
+                        line.push_str(&format!(" ({}⭐)", stars));
+                    }
+                    if let Some(comment) = &dj.comment {
+                        line.push_str(&format!(" - \"{}\"", comment));
+                    }
+                    println!("{}", line);
+                }
+            }
         }
 
         save_djs(config, campaign, &current_djs).await?;
@@ -364,7 +539,7 @@ async fn main() -> Result<()> {
     println!("Monitoring {} campaign(s):\n", args.url.len());
 
     // Load configuration from environment variables
-    let config = Config::from_env(args.url)?;
+    let mut config = Config::from_env(args.url)?;
 
     println!("Configuration:");
     println!("  Azure Storage Account: {}", config.storage_account);
@@ -378,9 +553,22 @@ async fn main() -> Result<()> {
         config.check_interval_minutes
     );
 
+    // Fetch track titles for all campaigns
+    println!("Fetching track information...");
+    for campaign in &mut config.campaigns {
+        if let Some(title) = fetch_track_title(&campaign.url).await {
+            campaign.track_title = Some(title);
+        }
+    }
+    println!();
+
     println!("Campaigns:");
     for campaign in &config.campaigns {
-        println!("  • {} ({})", campaign.name, campaign.url);
+        if let Some(title) = &campaign.track_title {
+            println!("  • {} ({})", title, campaign.url);
+        } else {
+            println!("  • {} ({})", campaign.name, campaign.url);
+        }
     }
     println!();
 
