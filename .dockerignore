@@ -1,19 +1,55 @@
-# Ignore build artifacts
+# Git
+.git
+.gitignore
+.github
+
+# Rust build artifacts
 target/
+debug/
+release/
+Cargo.lock
 
-# Ignore environment files
+# Environment and secrets
 .env
+.env.*
+!.env.example
 
-# Ignore local data
+# Local data
 dj_list.json
 
-# Ignore macOS files
-.DS_Store
+# Documentation (keep README)
+*.md
+!README.md
 
-# Ignore editor files
+# CI/CD scripts
+setup-github-secrets.sh
+
+# IDE and editor files
+.vscode/
+.idea/
 *.swp
 *.swo
 *~
 
-# Ignore log files
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Logs
 *.log
+
+# Deprecated files
+*.deprecated
+AWS_SETUP.md.deprecated
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+
+# Test files
+tests/
+test_data/
