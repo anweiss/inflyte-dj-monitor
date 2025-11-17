@@ -136,9 +136,9 @@ gh secret delete SECRET_NAME
 
 ## GitHub Actions Costs
 
-* **Free tier:** 2,000 minutes/month
+* **Free tier:** 2, 000 minutes/month
 * **This workflow:** ~2-3 minutes per run
-* **Deployments/month:** 600-1,000 within free tier
+* **Deployments/month:** 600-1, 000 within free tier
 
 ## Useful Commands
 

@@ -219,7 +219,7 @@ az container create \
 
 ## Best Practices
 
-* **Use git tags for releases:** Tag important commits with versions (e.g., `v1.0.0`)
+* **Use git tags for releases:** Tag important commits with versions (e.g.,  `v1.0.0`)
 * **Monitor workflow runs:** Enable email notifications for failed workflows
 * **Test locally first:** Always test Docker builds locally before pushing
 * **Review secrets regularly:** Rotate passwords and keys periodically
@@ -229,9 +229,9 @@ az container create \
 
 GitHub Actions includes:
 
-* **2,000 minutes/month free** for private repositories
+* **2, 000 minutes/month free** for private repositories
 * This workflow uses ~2-3 minutes per deployment
-* Approximately 600-1,000 deployments per month within free tier
+* Approximately 600-1, 000 deployments per month within free tier
 
 ## Next Steps
 
