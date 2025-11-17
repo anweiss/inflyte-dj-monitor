@@ -1,0 +1,10 @@
+/target
+**/*.rs.bk
+*.pdb
+
+# Environment variables
+.env
+
+# Local testing files (DJ list now stored in S3)
+dj_list.json
+dj_list.json.backup

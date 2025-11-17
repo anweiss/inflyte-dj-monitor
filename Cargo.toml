@@ -1,0 +1,15 @@
+[package]
+name = "inflyte"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1.42", features = ["full"] }
+reqwest = { version = "0.12", features = ["json", "multipart"] }
+scraper = "0.22"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+azure_storage = "0.20"
+azure_storage_blobs = "0.20"
+dotenv = "0.15"

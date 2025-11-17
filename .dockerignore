@@ -1,0 +1,19 @@
+# Ignore build artifacts
+target/
+
+# Ignore environment files
+.env
+
+# Ignore local data
+dj_list.json
+
+# Ignore macOS files
+.DS_Store
+
+# Ignore editor files
+*.swp
+*.swo
+*~
+
+# Ignore log files
+*.log
