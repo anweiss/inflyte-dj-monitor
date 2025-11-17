@@ -49,13 +49,22 @@ fi
 echo "Sending test email to: $RECIPIENT_EMAIL"
 echo "Subject: $SUBJECT"
 
+# Create temporary files for content to avoid curl issues with long strings
+TEXT_FILE=$(mktemp)
+HTML_FILE=$(mktemp)
+echo "$TEXT_CONTENT" > "$TEXT_FILE"
+echo "$HTML_CONTENT" > "$HTML_FILE"
+
 RESPONSE=$(curl -s -w "\n%{http_code}" --user "api:$MAILGUN_API_KEY" \
     "https://api.mailgun.net/v3/$MAILGUN_DOMAIN/messages" \
-    -F from="Inflyte Monitor <$FROM_EMAIL>" \
-    -F to="$RECIPIENT_EMAIL" \
-    -F subject="$SUBJECT" \
-    -F text="$TEXT_CONTENT" \
-    -F html="$HTML_CONTENT")
+    -F "from=Inflyte Monitor <$FROM_EMAIL>" \
+    -F "to=$RECIPIENT_EMAIL" \
+    -F "subject=$SUBJECT" \
+    -F "text=<$TEXT_FILE" \
+    -F "html=<$HTML_FILE")
+
+# Clean up temp files
+rm -f "$TEXT_FILE" "$HTML_FILE"
 
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
 BODY=$(echo "$RESPONSE" | sed '$d')
