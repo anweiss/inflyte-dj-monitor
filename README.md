@@ -10,8 +10,6 @@ A Rust tool that periodically scrapes multiple Inflyte campaign URLs and monitor
 * 🎯 **Multi-Campaign Support** - Monitor multiple Inflyte campaigns simultaneously
 * ☁️ **Cloud Storage** - Stores DJ lists per campaign in Azure Blob Storage for persistent, cloud-based tracking
 * 📧 **Email Alerts** - Sends beautiful HTML email notifications via Mailgun with campaign details, comments, and ratings
-* ⚡ **Async Architecture** - Efficient using Tokio runtime
-* 🔒 **Secure Config** - All sensitive data via environment variables
 
 ## Prerequisites
 
