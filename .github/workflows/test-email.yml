@@ -243,12 +243,12 @@ jobs:
         echo "Subject: $SUBJECT"
         
         RESPONSE=$(curl -s -w "\n%{http_code}" --user "api:$MAILGUN_API_KEY" \
-          "https://api.mailgun.net/v3/$MAILGUN_DOMAIN/messages" \
-          -F from="Inflyte Monitor <$FROM_EMAIL>" \
-          -F to="$RECIPIENT_EMAIL" \
-          -F subject="$SUBJECT" \
-          -F text="$TEXT_BODY" \
-          -F html="$HTML_BODY")
+            "https://api.mailgun.net/v3/$MAILGUN_DOMAIN/messages" \
+            -F from="Inflyte Monitor <$FROM_EMAIL>" \
+            -F to="$RECIPIENT_EMAIL" \
+            -F subject="$SUBJECT" \
+            --data-urlencode text="$TEXT_BODY" \
+            --data-urlencode html="$HTML_BODY")
         
         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
         BODY=$(echo "$RESPONSE" | sed '$d')
