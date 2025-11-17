@@ -4,7 +4,7 @@ FROM rust:1.91 AS builder
 WORKDIR /usr/src/inflyte
 
 # Copy manifests
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./
 
 # Copy source code
 COPY src ./src
