@@ -149,89 +149,125 @@ async fn fetch_dj_list(url: &str) -> Result<HashSet<DjSupport>> {
     let document = Html::parse_document(&response);
 
     let mut djs = HashSet::new();
-    let mut in_support_section = false;
 
-    for element in document.select(&Selector::parse("*").unwrap()) {
-        // Check if we've hit a Support header
-        if element.value().name() == "h3" {
-            let text = element.text().collect::<String>();
-            if text.trim() == "Support" {
-                in_support_section = true;
-                continue;
-            } else if in_support_section && text.trim() != "Support" {
-                // We've hit another h3, so we're out of the Support section
-                break;
-            }
-        }
+    // First pass: look for DJs with individual profile sections (name + comment + stars)
+    // These appear as structured elements with img, name, and comment
+    let h3_selector = Selector::parse("h3").unwrap();
 
-        // If we're in the support section, extract DJ information
-        if in_support_section {
-            let text = element.text().collect::<String>();
-
-            // Look for individual DJ entries with comments (e.g., "Vitor Saguanza Beautiful vibe!")
-            if element.value().name() == "div" || element.value().name() == "p" {
-                let trimmed = text.trim();
-
-                // Skip empty content and "Support from" lists
-                if trimmed.is_empty()
-                    || trimmed.starts_with("Get Mad")
-                    || trimmed.contains("Currently subscribed")
-                {
-                    continue;
-                }
-
-                // Try to parse individual DJ support with comment
-                // Format: "DJ Name Comment text" or just "DJ Name"
-                let parts: Vec<&str> = trimmed.splitn(2, char::is_whitespace).collect();
-                if parts.len() >= 1 && !trimmed.contains("Support from") {
-                    let potential_name = parts[0].trim();
-                    let comment = if parts.len() > 1 {
-                        let comment_text = parts[1].trim();
-                        if !comment_text.is_empty() && comment_text.len() < 200 {
-                            Some(comment_text.to_string())
-                        } else {
-                            None
+    for h3 in document.select(&h3_selector) {
+        let text = h3.text().collect::<String>();
+        if text.trim() == "Support" {
+            // Look at the next siblings after the Support h3
+            if let Some(mut next_element) = h3.next_sibling() {
+                loop {
+                    // Check if we've hit another h3 or end of support section
+                    if let Some(_element_ref) = next_element.value().as_element() {
+                        if _element_ref.name() == "h3" {
+                            break;
                         }
+                    }
+
+                    // Look for individual DJ profile sections
+                    // These contain an img tag followed by name and comment text
+                    if next_element.value().as_element().is_some() {
+                        let elem = scraper::ElementRef::wrap(next_element).unwrap();
+
+                        // Check if this element or its children contain an image (DJ profile pic)
+                        let img_selector = Selector::parse("img").unwrap();
+                        if elem.select(&img_selector).next().is_some() {
+                            // This is likely a DJ profile section
+                            // Extract all text content
+                            let full_text = elem.text().collect::<String>();
+                            let lines: Vec<&str> = full_text
+                                .lines()
+                                .map(|l| l.trim())
+                                .filter(|l| !l.is_empty())
+                                .collect();
+
+                            // The structure is typically:
+                            // Line 0: DJ Name (may have multiple parts)
+                            // Line 1+: Comment text
+                            // Stars: appear as ⭐ characters
+
+                            if lines.len() >= 2 {
+                                // Extract DJ name (first line before any emoji/stars)
+                                let name_line = lines[0];
+                                let name = name_line
+                                    .split('⭐')
+                                    .next()
+                                    .unwrap_or(name_line)
+                                    .trim()
+                                    .to_string();
+
+                                // Extract comment (subsequent lines that aren't "Support from")
+                                let mut comment_parts = Vec::new();
+                                for line in &lines[1..] {
+                                    if line.starts_with("Support from") {
+                                        break;
+                                    }
+                                    comment_parts.push(*line);
+                                }
+                                let comment_text = comment_parts.join(" ").trim().to_string();
+
+                                // Count stars
+                                let stars = full_text.matches('⭐').count() as u8;
+
+                                if !name.is_empty() && name.len() < 100 {
+                                    djs.insert(DjSupport {
+                                        name,
+                                        comment: if !comment_text.is_empty() {
+                                            Some(comment_text)
+                                        } else {
+                                            None
+                                        },
+                                        stars: if stars > 0 { Some(stars) } else { None },
+                                    });
+                                }
+                            }
+                        }
+
+                        // Also check for "Support from" list in this element
+                        let text = elem.text().collect::<String>();
+                        if text.contains("Support from") {
+                            // Extract the list of supporting DJs
+                            let after_support = text.split("Support from").nth(1).unwrap_or("");
+
+                            // Split by common delimiters
+                            let normalized = after_support.replace(" and ", ", ");
+                            let names: Vec<String> = normalized
+                                .split(',')
+                                .map(|s| s.trim())
+                                .filter(|s| {
+                                    !s.is_empty()
+                                        && !s.starts_with("Get Mad")
+                                        && !s.starts_with("Currently subscribed")
+                                        && s.len() < 100
+                                })
+                                .map(|s| s.to_string())
+                                .collect();
+
+                            for name_str in names {
+                                // Only add if it doesn't already exist (avoid duplicates)
+                                if !djs.iter().any(|dj| dj.name == name_str) {
+                                    djs.insert(DjSupport {
+                                        name: name_str,
+                                        comment: None,
+                                        stars: None,
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    // Move to next sibling
+                    if let Some(next) = next_element.next_sibling() {
+                        next_element = next;
                     } else {
-                        None
-                    };
-
-                    // Count stars in the text
-                    let stars = text.matches('⭐').count() as u8;
-                    let stars = if stars > 0 { Some(stars) } else { None };
-
-                    // Only add if it looks like a DJ name (not too long, doesn't contain certain keywords)
-                    if potential_name.len() > 0
-                        && potential_name.len() < 50
-                        && !potential_name.contains(',')
-                        && !potential_name.contains(" and ")
-                        && (comment.is_some() || stars.is_some())
-                    {
-                        djs.insert(DjSupport {
-                            name: potential_name.to_string(),
-                            comment,
-                            stars,
-                        });
+                        break;
                     }
                 }
             }
-
-            // Also handle the "Support from" list (DJs without individual comments)
-            if text.contains("Support from") {
-                let names_part = text.replace("Support from", "").replace(" and ", ", ");
-
-                for name in names_part.split(',') {
-                    let cleaned = name.trim();
-                    if !cleaned.is_empty() && !cleaned.starts_with("Get Mad") && cleaned.len() < 50
-                    {
-                        djs.insert(DjSupport {
-                            name: cleaned.to_string(),
-                            comment: None,
-                            stars: None,
-                        });
-                    }
-                }
-            }
+            break;
         }
     }
 
@@ -335,8 +371,10 @@ async fn send_email_alert(
         .collect::<Vec<_>>()
         .join("\n");
 
+    let campaign_display = campaign.track_title.as_ref().unwrap_or(&campaign.name);
+
     let subject = format!(
-        "🚨 {} New DJ{} {} to Inflyte Campaign '{}'",
+        "🚨 {} New DJ{} {} for {}",
         new_djs.len(),
         if new_djs.len() == 1 { "" } else { "s" },
         if new_djs
@@ -347,7 +385,7 @@ async fn send_email_alert(
         } else {
             "Added"
         },
-        campaign.name
+        campaign_display
     );
 
     let html_body = format!(
@@ -372,7 +410,7 @@ async fn send_email_alert(
         </div>
         <div class="content">
             <p><strong>New DJs have been added to the Support section!</strong></p>
-            <p class="campaign">Campaign: {}</p>
+            <p class="campaign">Track: {}</p>
             <div class="dj-list">
                 <h3>New Support ({})</h3>
 {}
@@ -385,7 +423,7 @@ async fn send_email_alert(
     </div>
 </body>
 </html>"#,
-        campaign.name,
+        campaign_display,
         new_djs.len(),
         new_djs
             .iter()
@@ -417,8 +455,8 @@ async fn send_email_alert(
     );
 
     let text_body = format!(
-        "🚨 New DJ support detected on Inflyte!\n\nCampaign: {}\n\n{}\n\nTotal new additions: {}\n\nView at: {}",
-        campaign.name,
+        "🚨 New DJ support detected on Inflyte!\n\nTrack: {}\n\n{}\n\nTotal new additions: {}\n\nView at: {}",
+        campaign_display,
         dj_list,
         new_djs.len(),
         &campaign.url
