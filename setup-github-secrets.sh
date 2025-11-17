@@ -101,7 +101,7 @@ gh secret set AZURE_STORAGE_ACCESS_KEY --body "$STORAGE_KEY" --repo "$REPO"
 echo "✅ Secret AZURE_STORAGE_ACCESS_KEY set"
 echo ""
 
-# 7-11. Mailgun and app configuration
+# 7-12. Mailgun and app configuration
 echo "4️⃣  Setting Mailgun and application secrets..."
 echo ""
 
@@ -109,6 +109,9 @@ echo ""
 if [ -f .env ]; then
     echo "📄 Loading values from .env file..."
     source .env
+    
+    gh secret set INFLYTE_URL --body "${INFLYTE_URL:-https://inflyteapp.com/r/pmqtne}" --repo "$REPO"
+    echo "✅ Secret INFLYTE_URL set"
     
     gh secret set MAILGUN_DOMAIN --body "$MAILGUN_DOMAIN" --repo "$REPO"
     echo "✅ Secret MAILGUN_DOMAIN set"
@@ -127,6 +130,7 @@ if [ -f .env ]; then
 else
     echo "⚠️  .env file not found. Please set Mailgun secrets manually:"
     echo ""
+    echo "   gh secret set INFLYTE_URL --body 'https://inflyteapp.com/r/YOUR_EVENT'"
     echo "   gh secret set MAILGUN_DOMAIN --body 'your-domain.mailgun.org'"
     echo "   gh secret set MAILGUN_API_KEY --body 'your-api-key'"
     echo "   gh secret set RECIPIENT_EMAIL --body 'your-email@example.com'"

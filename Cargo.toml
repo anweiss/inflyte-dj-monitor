@@ -13,3 +13,4 @@ anyhow = "1.0"
 azure_storage = "0.20"
 azure_storage_blobs = "0.20"
 dotenv = "0.15"
+clap = { version = "4.5", features = ["derive"] }

@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use azure_storage::StorageCredentials;
 use azure_storage_blobs::prelude::*;
+use clap::Parser;
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -8,10 +9,17 @@ use std::env;
 use std::time::Duration;
 use tokio::time;
 
-const URL: &str = "https://inflyteapp.com/r/pmqtne";
+#[derive(Parser, Debug)]
+#[command(author, version, about = "Monitor inflyteapp.com URLs for DJ changes", long_about = None)]
+struct Args {
+    /// The inflyteapp.com URL to monitor
+    #[arg(short, long)]
+    url: String,
+}
 
 #[derive(Debug, Clone)]
 struct Config {
+    url: String,
     storage_account: String,
     storage_container: String,
     blob_name: String,
@@ -24,7 +32,7 @@ struct Config {
 }
 
 impl Config {
-    fn from_env() -> Result<Self> {
+    fn from_env(url: String) -> Result<Self> {
         dotenv::dotenv().ok();
 
         let storage_account = env::var("AZURE_STORAGE_ACCOUNT")
@@ -39,6 +47,7 @@ impl Config {
         };
 
         Ok(Config {
+            url,
             storage_account,
             storage_container: env::var("AZURE_STORAGE_CONTAINER")
                 .unwrap_or_else(|_| "inflyte-dj-monitor".to_string()),
@@ -66,8 +75,8 @@ struct DjStorage {
 }
 
 /// Fetch the webpage and extract DJ names from the Support section
-async fn fetch_dj_list() -> Result<HashSet<String>> {
-    let response = reqwest::get(URL)
+async fn fetch_dj_list(url: &str) -> Result<HashSet<String>> {
+    let response = reqwest::get(url)
         .await
         .context("Failed to fetch webpage")?
         .text()
@@ -214,14 +223,14 @@ async fn send_email_alert(config: &Config, new_djs: &[&String]) -> Result<()> {
             .map(|dj| format!("                <div class=\"dj-item\">✨ {}</div>", dj))
             .collect::<Vec<_>>()
             .join("\n"),
-        URL
+        &config.url
     );
 
     let text_body = format!(
         "🚨 New DJs detected on Inflyte!\n\n{}\n\nTotal new additions: {}\n\nView at: {}",
         dj_list,
         new_djs.len(),
-        URL
+        &config.url
     );
 
     let client = reqwest::Client::new();
@@ -260,7 +269,7 @@ async fn send_email_alert(config: &Config, new_djs: &[&String]) -> Result<()> {
 async fn check_for_new_djs(config: &Config) -> Result<()> {
     println!("Checking for new DJs...");
 
-    let current_djs = fetch_dj_list().await?;
+    let current_djs = fetch_dj_list(&config.url).await?;
     let previous_djs = load_previous_djs(config).await?;
 
     if previous_djs.is_empty() {
@@ -298,11 +307,14 @@ async fn check_for_new_djs(config: &Config) -> Result<()> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Parse command-line arguments
+    let args = Args::parse();
+
     println!("🎵 Inflyte DJ Monitor Starting...");
-    println!("Monitoring: {}\n", URL);
+    println!("Monitoring: {}\n", args.url);
 
     // Load configuration from environment variables
-    let config = Config::from_env()?;
+    let config = Config::from_env(args.url)?;
 
     println!("Configuration:");
     println!("  Azure Storage Account: {}", config.storage_account);
