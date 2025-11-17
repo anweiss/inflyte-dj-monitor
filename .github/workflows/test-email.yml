@@ -241,6 +241,16 @@ jobs:
         # Send email via Mailgun API
         echo "Sending test email to: $RECIPIENT_EMAIL"
         echo "Subject: $SUBJECT"
+
+        echo "MAILGUN_API_KEY: ${MAILGUN_API_KEY:+"[set]"}"
+        echo "MAILGUN_DOMAIN: ${MAILGUN_DOMAIN}"
+        echo "RECIPIENT_EMAIL: ${RECIPIENT_EMAIL}"
+        echo "FROM_EMAIL: ${FROM_EMAIL}"
+
+        : "${MAILGUN_API_KEY:?MAILGUN_API_KEY required}"
+        : "${MAILGUN_DOMAIN:?MAILGUN_DOMAIN required}"
+        : "${RECIPIENT_EMAIL:?RECIPIENT_EMAIL required}"
+        : "${FROM_EMAIL:?FROM_EMAIL required}"
         
         RESPONSE=$(curl -s -w "\n%{http_code}" --user "api:$MAILGUN_API_KEY" \
             "https://api.mailgun.net/v3/$MAILGUN_DOMAIN/messages" \
