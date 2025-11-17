@@ -262,16 +262,22 @@ sudo systemctl status inflyte-monitor
 
 ### Running on Azure Container Instances
 
-For a fully managed, always-on deployment, see [AZURE_CONTAINER_DEPLOYMENT.md](AZURE_CONTAINER_DEPLOYMENT.md).
+For a fully managed, always-on deployment with automatic CI/CD, see:
+
+* **[AZURE_CONTAINER_DEPLOYMENT.md](AZURE_CONTAINER_DEPLOYMENT.md)** - Manual Docker deployment
+* **[GITHUB_ACTIONS_SETUP.md](GITHUB_ACTIONS_SETUP.md)** - Automated CI/CD with GitHub Actions
 
 Quick summary:
 
 1. Build Docker image
 2. Push to Azure Container Registry
 3. Create container instance with environment variables
-4. Monitor via Azure CLI or portal
+4. Set up GitHub Actions for automatic deployments
+5. Monitor via Azure CLI or portal
 
 **Cost:** ~$6.31/month for 24/7 operation
+
+**Deployment:** Automatic on every push to `main` branch (via GitHub Actions)
 
 ### Running on Azure Functions
 

@@ -1,0 +1,87 @@
+name: Build and Deploy to Azure Container Instance
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  ACR_NAME: inflyteacr
+  ACR_LOGIN_SERVER: inflyteacr.azurecr.io
+  IMAGE_NAME: inflyte-monitor
+  RESOURCE_GROUP: inflyte-monitor-rg
+  CONTAINER_NAME: inflyte-monitor
+  AZURE_REGION: eastus
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Log in to Azure Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.ACR_LOGIN_SERVER }}
+        username: ${{ env.ACR_NAME }}
+        password: ${{ secrets.ACR_PASSWORD }}
+
+    - name: Build Docker image
+      run: |
+        docker build --platform linux/amd64 -t ${{ env.IMAGE_NAME }}:latest .
+        docker tag ${{ env.IMAGE_NAME }}:latest ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+        docker tag ${{ env.IMAGE_NAME }}:latest ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+    - name: Push Docker image to ACR
+      run: |
+        docker push ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:latest
+        docker push ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+    - name: Log in to Azure
+      uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Delete existing container instance
+      run: |
+        az container delete \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --name ${{ env.CONTAINER_NAME }} \
+          --yes
+      continue-on-error: true
+
+    - name: Deploy to Azure Container Instance
+      run: |
+        az container create \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --name ${{ env.CONTAINER_NAME }} \
+          --image ${{ env.ACR_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+          --registry-login-server ${{ env.ACR_LOGIN_SERVER }} \
+          --registry-username ${{ env.ACR_NAME }} \
+          --registry-password ${{ secrets.ACR_PASSWORD }} \
+          --cpu 1 \
+          --memory 0.5 \
+          --restart-policy Always \
+          --os-type Linux \
+          --environment-variables \
+            AZURE_STORAGE_ACCOUNT=${{ secrets.AZURE_STORAGE_ACCOUNT }} \
+            AZURE_STORAGE_CONTAINER=${{ secrets.AZURE_STORAGE_CONTAINER }} \
+            AZURE_BLOB_NAME=${{ secrets.AZURE_BLOB_NAME }} \
+            MAILGUN_DOMAIN=${{ secrets.MAILGUN_DOMAIN }} \
+            RECIPIENT_EMAIL=${{ secrets.RECIPIENT_EMAIL }} \
+            FROM_EMAIL=${{ secrets.FROM_EMAIL }} \
+            CHECK_INTERVAL_MINUTES=${{ secrets.CHECK_INTERVAL_MINUTES }} \
+          --secure-environment-variables \
+            AZURE_STORAGE_ACCESS_KEY=${{ secrets.AZURE_STORAGE_ACCESS_KEY }} \
+            MAILGUN_API_KEY=${{ secrets.MAILGUN_API_KEY }}
+
+    - name: Verify deployment
+      run: |
+        az container show \
+          --resource-group ${{ env.RESOURCE_GROUP }} \
+          --name ${{ env.CONTAINER_NAME }} \
+          --query "{Name:name, State:instanceView.state, Image:containers[0].image}" \
+          --output table
