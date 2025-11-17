@@ -257,8 +257,8 @@ jobs:
             -F from="Inflyte Monitor <$FROM_EMAIL>" \
             -F to="$RECIPIENT_EMAIL" \
             -F subject="$SUBJECT" \
-            --data-urlencode text="$TEXT_BODY" \
-            --data-urlencode html="$HTML_BODY")
+            -F text="$TEXT_BODY" \
+            -F html="$HTML_BODY")
         
         HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
         BODY=$(echo "$RESPONSE" | sed '$d')
