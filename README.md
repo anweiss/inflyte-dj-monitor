@@ -1,13 +1,14 @@
 # Inflyte DJ Monitor
 
-A Rust tool that periodically scrapes https://inflyteapp.com/r/pmqtne and monitors the Support section for new DJs, with cloud storage via Azure Blob Storage and email notifications via Mailgun.
+A Rust tool that periodically scrapes multiple Inflyte campaign URLs and monitors the Support section for new DJs, with cloud storage via Azure Blob Storage and email notifications via Mailgun.
 
 ## Features
 
-* 🔍 **Web Scraping** - Automatically scrapes the Inflyte page at configurable intervals
-* 📊 **DJ Detection** - Extracts DJ names from the Support section
-* ☁️ **Cloud Storage** - Stores DJ list in Azure Blob Storage for persistent, cloud-based tracking
-* 📧 **Email Alerts** - Sends beautiful HTML email notifications via Mailgun
+* 🔍 **Web Scraping** - Automatically scrapes multiple Inflyte campaign pages at configurable intervals
+* 📊 **DJ Detection** - Extracts DJ names from the Support section for each campaign
+* 🎯 **Multi-Campaign Support** - Monitor multiple Inflyte campaigns simultaneously
+* ☁️ **Cloud Storage** - Stores DJ lists per campaign in Azure Blob Storage for persistent, cloud-based tracking
+* 📧 **Email Alerts** - Sends beautiful HTML email notifications via Mailgun with campaign details
 * ⚡ **Async Architecture** - Efficient using Tokio runtime
 * 🔒 **Secure Config** - All sensitive data via environment variables
 
@@ -81,7 +82,7 @@ Edit `.env` :
 # Azure Storage Configuration
 AZURE_STORAGE_ACCOUNT=inflytedjmonitor123456
 AZURE_STORAGE_CONTAINER=inflyte-dj-monitor
-AZURE_BLOB_NAME=dj_list.json
+AZURE_BLOB_NAME_PREFIX=dj_list
 AZURE_STORAGE_ACCESS_KEY=your-storage-access-key-here
 
 # Mailgun Configuration
@@ -101,8 +102,14 @@ CHECK_INTERVAL_MINUTES=60
 ### 5. Run the Monitor
 
 ```bash
-# Load environment and run
-cargo run --release
+# Load environment and run with one or more URLs
+cargo run --release -- --url https://inflyteapp.com/r/pmqtne
+
+# Monitor multiple campaigns (comma-separated)
+cargo run --release -- --url https://inflyteapp.com/r/campaign1,https://inflyteapp.com/r/campaign2
+
+# Or use multiple --url flags
+cargo run --release -- --url https://inflyteapp.com/r/campaign1 --url https://inflyteapp.com/r/campaign2
 ```
 
 ## How It Works
@@ -149,29 +156,36 @@ cargo run --release
 
 ```
 🎵 Inflyte DJ Monitor Starting...
-Monitoring: https://inflyteapp.com/r/pmqtne
+Monitoring 2 campaign(s):
 
 Configuration:
-  Storage Account: inflytemonitstg
-  Storage Container: dj-monitor
-  Blob Name: dj_list.json
+  Azure Storage Account: inflytemonitstg
+  Azure Container: dj-monitor
+  Blob Name Prefix: dj_list
   Email To: you@example.com
   Email From: noreply@sandbox123.mailgun.org
   Mailgun Domain: sandbox123.mailgun.org
   Check Interval: 60 minutes
 
+Campaigns:
+  • pmqtne (https://inflyteapp.com/r/pmqtne)
+  • campaign2 (https://inflyteapp.com/r/campaign2)
+
 Azure Blob Storage configured
 
-Checking for new DJs...
-Initial run - found 27 DJs
+Checking pmqtne for new DJs...
+Initial run for pmqtne - found 27 DJs
+
+Checking campaign2 for new DJs...
+Initial run for campaign2 - found 15 DJs
 ```
 
 ### When New DJs Are Detected
 
 ```
-Checking for new DJs...
+Checking pmqtne for new DJs...
 
-🚨 ALERT: New DJs detected!
+🚨 ALERT: New DJs detected for pmqtne!
 ═══════════════════════════════
   ✨ New DJ Name 1
   ✨ New DJ Name 2
@@ -183,15 +197,18 @@ Checking for new DJs...
 ### No Changes
 
 ```
-Checking for new DJs...
-No new DJs found. Total: 27
+Checking pmqtne for new DJs...
+No new DJs found for pmqtne. Total: 27
+
+Checking campaign2 for new DJs...
+No new DJs found for campaign2. Total: 15
 ```
 
 ## Email Notification Example
 
 When new DJs are detected, you'll receive a beautifully formatted HTML email:
 
-**Subject:** 🚨 2 New DJs Added to Inflyte Support List
+**Subject:** 🚨 2 New DJs Added to Inflyte Campaign 'pmqtne'
 
 **Body:**
 
@@ -201,11 +218,13 @@ When new DJs are detected, you'll receive a beautifully formatted HTML email:
 
 New DJs have been added to the Support section!
 
+Campaign: pmqtne
+
 New Additions (2)
   ✨ New DJ Name 1
   ✨ New DJ Name 2
 
-View the full list at: inflyteapp.com
+View the full list at: https://inflyteapp.com/r/pmqtne
 ```
 
 ## Configuration Options
@@ -214,7 +233,7 @@ View the full list at: inflyteapp.com
 |----------|----------|---------|-------------|
 | `AZURE_STORAGE_ACCOUNT` | ✅ Yes | - | Azure Storage account name |
 | `AZURE_STORAGE_CONTAINER` | ✅ Yes | - | Azure Blob container name |
-| `AZURE_BLOB_NAME` | No | `dj_list.json` | Blob name for the DJ list file |
+| `AZURE_BLOB_NAME_PREFIX` | No | `dj_list` | Prefix for blob names (campaign name will be appended) |
 | `AZURE_STORAGE_ACCESS_KEY` | ✅ Yes* | - | Azure Storage access key (or use SAS token) |
 | `AZURE_STORAGE_SAS_TOKEN` | ✅ Yes* | - | Azure Storage SAS token (alternative to access key) |
 | `MAILGUN_API_KEY` | ✅ Yes | - | Your Mailgun API key |
@@ -228,7 +247,11 @@ View the full list at: inflyteapp.com
 ### Running Locally
 
 ```bash
-cargo run --release
+# Single campaign
+cargo run --release -- --url https://inflyteapp.com/r/pmqtne
+
+# Multiple campaigns
+cargo run --release -- --url https://inflyteapp.com/r/campaign1,https://inflyteapp.com/r/campaign2
 ```
 
 ### Running as a Background Service (Linux)

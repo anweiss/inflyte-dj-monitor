@@ -12,17 +12,23 @@ use tokio::time;
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Monitor inflyteapp.com URLs for DJ changes", long_about = None)]
 struct Args {
-    /// The inflyteapp.com URL to monitor
-    #[arg(short, long)]
+    /// The inflyteapp.com URLs to monitor (comma-separated or multiple --url flags)
+    #[arg(short, long, value_delimiter = ',', num_args = 1..)]
+    url: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+struct Campaign {
     url: String,
+    name: String,
 }
 
 #[derive(Debug, Clone)]
 struct Config {
-    url: String,
+    campaigns: Vec<Campaign>,
     storage_account: String,
     storage_container: String,
-    blob_name: String,
+    blob_name_prefix: String,
     storage_credentials: StorageCredentials,
     mailgun_api_key: String,
     mailgun_domain: String,
@@ -32,7 +38,7 @@ struct Config {
 }
 
 impl Config {
-    fn from_env(url: String) -> Result<Self> {
+    fn from_env(urls: Vec<String>) -> Result<Self> {
         dotenv::dotenv().ok();
 
         let storage_account = env::var("AZURE_STORAGE_ACCOUNT")
@@ -46,12 +52,22 @@ impl Config {
             anyhow::bail!("Either AZURE_STORAGE_ACCESS_KEY or AZURE_STORAGE_SAS_TOKEN must be set")
         };
 
+        // Create campaign objects with extracted names
+        let campaigns = urls
+            .into_iter()
+            .map(|url| {
+                let name = extract_campaign_name(&url);
+                Campaign { url, name }
+            })
+            .collect();
+
         Ok(Config {
-            url,
+            campaigns,
             storage_account,
             storage_container: env::var("AZURE_STORAGE_CONTAINER")
                 .unwrap_or_else(|_| "inflyte-dj-monitor".to_string()),
-            blob_name: env::var("AZURE_BLOB_NAME").unwrap_or_else(|_| "dj_list.json".to_string()),
+            blob_name_prefix: env::var("AZURE_BLOB_NAME_PREFIX")
+                .unwrap_or_else(|_| "dj_list".to_string()),
             storage_credentials,
             mailgun_api_key: env::var("MAILGUN_API_KEY")
                 .context("MAILGUN_API_KEY environment variable not set")?,
@@ -72,6 +88,20 @@ impl Config {
 #[derive(Debug, Serialize, Deserialize)]
 struct DjStorage {
     djs: HashSet<String>,
+}
+
+/// Extract campaign name from URL (e.g., https://inflyteapp.com/r/pmqtne -> pmqtne)
+fn extract_campaign_name(url: &str) -> String {
+    url.trim_end_matches('/')
+        .rsplit('/')
+        .next()
+        .unwrap_or("unknown")
+        .to_string()
+}
+
+/// Get blob name for a campaign
+fn get_blob_name(config: &Config, campaign: &Campaign) -> String {
+    format!("{}_{}.json", config.blob_name_prefix, campaign.name)
 }
 
 /// Fetch the webpage and extract DJ names from the Support section
@@ -123,14 +153,15 @@ async fn fetch_dj_list(url: &str) -> Result<HashSet<String>> {
 }
 
 /// Load the previously saved DJ list from Azure Blob Storage
-async fn load_previous_djs(config: &Config) -> Result<HashSet<String>> {
+async fn load_previous_djs(config: &Config, campaign: &Campaign) -> Result<HashSet<String>> {
     let container_client = BlobServiceClient::new(
         config.storage_account.clone(),
         config.storage_credentials.clone(),
     )
     .container_client(&config.storage_container);
 
-    let blob_client = container_client.blob_client(&config.blob_name);
+    let blob_name = get_blob_name(config, campaign);
+    let blob_client = container_client.blob_client(&blob_name);
 
     match blob_client.get_content().await {
         Ok(content) => {
@@ -148,7 +179,7 @@ async fn load_previous_djs(config: &Config) -> Result<HashSet<String>> {
 }
 
 /// Save the current DJ list to Azure Blob Storage
-async fn save_djs(config: &Config, djs: &HashSet<String>) -> Result<()> {
+async fn save_djs(config: &Config, campaign: &Campaign, djs: &HashSet<String>) -> Result<()> {
     let storage = DjStorage { djs: djs.clone() };
     let json = serde_json::to_string_pretty(&storage).context("Failed to serialize DJ list")?;
 
@@ -158,7 +189,8 @@ async fn save_djs(config: &Config, djs: &HashSet<String>) -> Result<()> {
     )
     .container_client(&config.storage_container);
 
-    let blob_client = container_client.blob_client(&config.blob_name);
+    let blob_name = get_blob_name(config, campaign);
+    let blob_client = container_client.blob_client(&blob_name);
 
     let bytes = json.into_bytes();
     blob_client
@@ -171,7 +203,7 @@ async fn save_djs(config: &Config, djs: &HashSet<String>) -> Result<()> {
 }
 
 /// Send email notification via Mailgun API
-async fn send_email_alert(config: &Config, new_djs: &[&String]) -> Result<()> {
+async fn send_email_alert(config: &Config, campaign: &Campaign, new_djs: &[&String]) -> Result<()> {
     let dj_list = new_djs
         .iter()
         .map(|dj| format!("  • {}", dj))
@@ -179,9 +211,10 @@ async fn send_email_alert(config: &Config, new_djs: &[&String]) -> Result<()> {
         .join("\n");
 
     let subject = format!(
-        "🚨 {} New DJ{} Added to Inflyte Support List",
+        "🚨 {} New DJ{} Added to Inflyte Campaign '{}'",
         new_djs.len(),
-        if new_djs.len() == 1 { "" } else { "s" }
+        if new_djs.len() == 1 { "" } else { "s" },
+        campaign.name
     );
 
     let html_body = format!(
@@ -195,6 +228,7 @@ async fn send_email_alert(config: &Config, new_djs: &[&String]) -> Result<()> {
         .content {{ background: #f9f9f9; padding: 20px; border-radius: 0 0 8px 8px; }}
         .dj-list {{ background: white; padding: 15px; border-left: 4px solid #667eea; margin: 15px 0; }}
         .dj-item {{ margin: 8px 0; }}
+        .campaign {{ color: #667eea; font-weight: bold; }}
         .footer {{ text-align: center; margin-top: 20px; color: #666; font-size: 12px; }}
     </style>
 </head>
@@ -205,11 +239,12 @@ async fn send_email_alert(config: &Config, new_djs: &[&String]) -> Result<()> {
         </div>
         <div class="content">
             <p><strong>New DJs have been added to the Support section!</strong></p>
+            <p class="campaign">Campaign: {}</p>
             <div class="dj-list">
                 <h3>New Additions ({})</h3>
 {}
             </div>
-            <p>View the full list at: <a href="{}">inflyteapp.com</a></p>
+            <p>View the full list at: <a href="{}">{}</a></p>
         </div>
         <div class="footer">
             <p>This is an automated notification from your Inflyte DJ Monitor</p>
@@ -217,20 +252,23 @@ async fn send_email_alert(config: &Config, new_djs: &[&String]) -> Result<()> {
     </div>
 </body>
 </html>"#,
+        campaign.name,
         new_djs.len(),
         new_djs
             .iter()
             .map(|dj| format!("                <div class=\"dj-item\">✨ {}</div>", dj))
             .collect::<Vec<_>>()
             .join("\n"),
-        &config.url
+        &campaign.url,
+        &campaign.url
     );
 
     let text_body = format!(
-        "🚨 New DJs detected on Inflyte!\n\n{}\n\nTotal new additions: {}\n\nView at: {}",
+        "🚨 New DJs detected on Inflyte!\n\nCampaign: {}\n\n{}\n\nTotal new additions: {}\n\nView at: {}",
+        campaign.name,
         dj_list,
         new_djs.len(),
-        &config.url
+        &campaign.url
     );
 
     let client = reqwest::Client::new();
@@ -266,23 +304,27 @@ async fn send_email_alert(config: &Config, new_djs: &[&String]) -> Result<()> {
 }
 
 /// Check for new DJs and send alerts
-async fn check_for_new_djs(config: &Config) -> Result<()> {
-    println!("Checking for new DJs...");
+async fn check_for_new_djs(config: &Config, campaign: &Campaign) -> Result<()> {
+    println!("Checking {} for new DJs...", campaign.name);
 
-    let current_djs = fetch_dj_list(&config.url).await?;
-    let previous_djs = load_previous_djs(config).await?;
+    let current_djs = fetch_dj_list(&campaign.url).await?;
+    let previous_djs = load_previous_djs(config, campaign).await?;
 
     if previous_djs.is_empty() {
-        println!("Initial run - found {} DJs", current_djs.len());
+        println!(
+            "Initial run for {} - found {} DJs",
+            campaign.name,
+            current_djs.len()
+        );
         println!("Current DJs: {:?}", current_djs);
-        save_djs(config, &current_djs).await?;
-        println!("✅ Saved initial DJ list to Azure Blob Storage");
+        save_djs(config, campaign, &current_djs).await?;
+        println!("✅ Saved initial DJ list for {}", campaign.name);
         return Ok(());
     } else {
         let new_djs: Vec<_> = current_djs.difference(&previous_djs).collect();
 
         if !new_djs.is_empty() {
-            println!("\n🚨 ALERT: New DJs detected!");
+            println!("\n🚨 ALERT: New DJs detected for {}!", campaign.name);
             println!("═══════════════════════════════");
             for dj in &new_djs {
                 println!("  ✨ {}", dj);
@@ -290,16 +332,20 @@ async fn check_for_new_djs(config: &Config) -> Result<()> {
             println!("═══════════════════════════════\n");
 
             // Send email notification
-            if let Err(e) = send_email_alert(config, &new_djs).await {
+            if let Err(e) = send_email_alert(config, campaign, &new_djs).await {
                 eprintln!("Failed to send email alert: {}", e);
             } else {
                 println!("✅ Email notification sent to {}", config.recipient_email);
             }
         } else {
-            println!("No new DJs found. Total: {}", current_djs.len());
+            println!(
+                "No new DJs found for {}. Total: {}",
+                campaign.name,
+                current_djs.len()
+            );
         }
 
-        save_djs(config, &current_djs).await?;
+        save_djs(config, campaign, &current_djs).await?;
     }
 
     Ok(())
@@ -310,8 +356,12 @@ async fn main() -> Result<()> {
     // Parse command-line arguments
     let args = Args::parse();
 
+    if args.url.is_empty() {
+        anyhow::bail!("At least one URL must be provided via --url");
+    }
+
     println!("🎵 Inflyte DJ Monitor Starting...");
-    println!("Monitoring: {}\n", args.url);
+    println!("Monitoring {} campaign(s):\n", args.url.len());
 
     // Load configuration from environment variables
     let config = Config::from_env(args.url)?;
@@ -319,7 +369,7 @@ async fn main() -> Result<()> {
     println!("Configuration:");
     println!("  Azure Storage Account: {}", config.storage_account);
     println!("  Azure Container: {}", config.storage_container);
-    println!("  Blob Name: {}", config.blob_name);
+    println!("  Blob Name Prefix: {}", config.blob_name_prefix);
     println!("  Email To: {}", config.recipient_email);
     println!("  Email From: {}", config.from_email);
     println!("  Mailgun Domain: {}", config.mailgun_domain);
@@ -328,11 +378,19 @@ async fn main() -> Result<()> {
         config.check_interval_minutes
     );
 
+    println!("Campaigns:");
+    for campaign in &config.campaigns {
+        println!("  • {} ({})", campaign.name, campaign.url);
+    }
+    println!();
+
     println!("Azure Blob Storage configured\n");
 
-    // Run initial check
-    if let Err(e) = check_for_new_djs(&config).await {
-        eprintln!("Error during check: {}", e);
+    // Run initial check for all campaigns
+    for campaign in &config.campaigns {
+        if let Err(e) = check_for_new_djs(&config, campaign).await {
+            eprintln!("Error during check for {}: {}", campaign.name, e);
+        }
     }
 
     // Set up periodic checks
@@ -341,8 +399,10 @@ async fn main() -> Result<()> {
 
     loop {
         interval.tick().await;
-        if let Err(e) = check_for_new_djs(&config).await {
-            eprintln!("Error during check: {}", e);
+        for campaign in &config.campaigns {
+            if let Err(e) = check_for_new_djs(&config, campaign).await {
+                eprintln!("Error during check for {}: {}", campaign.name, e);
+            }
         }
     }
 }

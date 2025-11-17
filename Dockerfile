@@ -28,5 +28,5 @@ RUN useradd -m -u 1000 inflyte
 USER inflyte
 
 # Run the application
-# INFLYTE_URL environment variable should be provided at runtime
-CMD ["sh", "-c", "inflyte --url ${INFLYTE_URL}"]
+# INFLYTE_URLS environment variable should be provided at runtime (comma-separated URLs)
+CMD ["sh", "-c", "inflyte --url ${INFLYTE_URLS}"]

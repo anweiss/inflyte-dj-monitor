@@ -89,8 +89,8 @@ echo "✅ Secret AZURE_STORAGE_ACCOUNT set"
 gh secret set AZURE_STORAGE_CONTAINER --body "dj-monitor" --repo "$REPO"
 echo "✅ Secret AZURE_STORAGE_CONTAINER set"
 
-gh secret set AZURE_BLOB_NAME --body "dj_list.json" --repo "$REPO"
-echo "✅ Secret AZURE_BLOB_NAME set"
+gh secret set AZURE_BLOB_NAME_PREFIX --body "dj_list" --repo "$REPO"
+echo "✅ Secret AZURE_BLOB_NAME_PREFIX set"
 
 STORAGE_KEY=$(az storage account keys list \
   --account-name ${STORAGE_ACCOUNT} \
@@ -110,8 +110,21 @@ if [ -f .env ]; then
     echo "📄 Loading values from .env file..."
     source .env
     
-    gh secret set INFLYTE_URL --body "${INFLYTE_URL:-https://inflyteapp.com/r/pmqtne}" --repo "$REPO"
-    echo "✅ Secret INFLYTE_URL set"
+    # Prompt for campaign URLs
+    echo ""
+    echo "Enter Inflyte campaign URLs (comma-separated):"
+    echo "Example: https://inflyteapp.com/r/pmqtne,https://inflyteapp.com/r/campaign2"
+    read -p "URLs: " INFLYTE_URLS_INPUT
+    
+    if [ -z "$INFLYTE_URLS_INPUT" ]; then
+        echo "⚠️  No URLs provided, using default from .env or example"
+        INFLYTE_URLS="${INFLYTE_URL:-https://inflyteapp.com/r/pmqtne}"
+    else
+        INFLYTE_URLS="$INFLYTE_URLS_INPUT"
+    fi
+    
+    gh secret set INFLYTE_URLS --body "$INFLYTE_URLS" --repo "$REPO"
+    echo "✅ Secret INFLYTE_URLS set"
     
     gh secret set MAILGUN_DOMAIN --body "$MAILGUN_DOMAIN" --repo "$REPO"
     echo "✅ Secret MAILGUN_DOMAIN set"
@@ -130,7 +143,7 @@ if [ -f .env ]; then
 else
     echo "⚠️  .env file not found. Please set Mailgun secrets manually:"
     echo ""
-    echo "   gh secret set INFLYTE_URL --body 'https://inflyteapp.com/r/YOUR_EVENT'"
+    echo "   gh secret set INFLYTE_URLS --body 'https://inflyteapp.com/r/campaign1,https://inflyteapp.com/r/campaign2'"
     echo "   gh secret set MAILGUN_DOMAIN --body 'your-domain.mailgun.org'"
     echo "   gh secret set MAILGUN_API_KEY --body 'your-api-key'"
     echo "   gh secret set RECIPIENT_EMAIL --body 'your-email@example.com'"

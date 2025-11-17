@@ -67,10 +67,10 @@ jobs:
           --restart-policy Always \
           --os-type Linux \
           --environment-variables \
-            INFLYTE_URL=${{ secrets.INFLYTE_URL }} \
+            INFLYTE_URLS=${{ secrets.INFLYTE_URLS }} \
             AZURE_STORAGE_ACCOUNT=${{ secrets.AZURE_STORAGE_ACCOUNT }} \
             AZURE_STORAGE_CONTAINER=${{ secrets.AZURE_STORAGE_CONTAINER }} \
-            AZURE_BLOB_NAME=${{ secrets.AZURE_BLOB_NAME }} \
+            AZURE_BLOB_NAME_PREFIX=${{ secrets.AZURE_BLOB_NAME_PREFIX }} \
             MAILGUN_DOMAIN=${{ secrets.MAILGUN_DOMAIN }} \
             RECIPIENT_EMAIL=${{ secrets.RECIPIENT_EMAIL }} \
             FROM_EMAIL=${{ secrets.FROM_EMAIL }} \

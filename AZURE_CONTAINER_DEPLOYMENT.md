@@ -151,16 +151,21 @@ You should see output like:
 
 ```
 🎵 Inflyte DJ Monitor Starting...
-Monitoring: https://inflyteapp.com/r/pmqtne
+Monitoring 2 campaign(s):
 
 Configuration:
   Azure Storage Account: inflytemonitstg
   Azure Container: dj-monitor
-  Blob Name: dj_list.json
+  Blob Name Prefix: dj_list
   ...
 
+Campaigns:
+  • pmqtne (https://inflyteapp.com/r/pmqtne)
+  • campaign2 (https://inflyteapp.com/r/campaign2)
+
 Azure Blob Storage configured
-Checking for new DJs...
+Checking pmqtne for new DJs...
+Checking campaign2 for new DJs...
 ```
 
 ## Updating the Deployment
@@ -194,9 +199,10 @@ az container create \
   --restart-policy Always \
   --os-type Linux \
   --environment-variables \
+    INFLYTE_URLS=https://inflyteapp.com/r/pmqtne,https://inflyteapp.com/r/campaign2 \
     AZURE_STORAGE_ACCOUNT=inflytemonitstg \
     AZURE_STORAGE_CONTAINER=dj-monitor \
-    AZURE_BLOB_NAME=dj_list.json \
+    AZURE_BLOB_NAME_PREFIX=dj_list \
     MAILGUN_DOMAIN=your-domain.mailgun.org \
     RECIPIENT_EMAIL=you@example.com \
     FROM_EMAIL=noreply@inflyte.com \
@@ -226,9 +232,10 @@ az container create \
   --os-type Linux \
   --assign-identity \
   --environment-variables \
+    INFLYTE_URLS=https://inflyteapp.com/r/pmqtne,https://inflyteapp.com/r/campaign2 \
     AZURE_STORAGE_ACCOUNT=inflytemonitstg \
     AZURE_STORAGE_CONTAINER=dj-monitor \
-    AZURE_BLOB_NAME=dj_list.json \
+    AZURE_BLOB_NAME_PREFIX=dj_list \
     MAILGUN_DOMAIN=your-domain.mailgun.org \
     RECIPIENT_EMAIL=you@example.com \
     FROM_EMAIL=noreply@inflyte.com \

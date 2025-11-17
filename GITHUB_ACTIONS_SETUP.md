@@ -8,9 +8,43 @@ You need to configure the following secrets in your GitHub repository:
 
 ### Navigate to Settings → Secrets and variables → Actions → New repository secret
 
+### Inflyte Configuration
+
+#### 1. `INFLYTE_URLS`
+
+Value: Comma-separated list of Inflyte campaign URLs to monitor
+
+Example: `https://inflyteapp.com/r/pmqtne,https://inflyteapp.com/r/campaign2`
+
+### Azure Storage Configuration
+
+#### 2. `AZURE_STORAGE_ACCOUNT`
+
+Value: `inflytemonitstg`
+
+#### 3. `AZURE_STORAGE_CONTAINER`
+
+Value: `dj-monitor`
+
+#### 4. `AZURE_BLOB_NAME_PREFIX`
+
+Value: `dj_list` (campaign names will be automatically appended)
+
+#### 5. `AZURE_STORAGE_ACCESS_KEY`
+
+Get your storage account access key:
+
+```bash
+az storage account keys list \
+  --account-name inflytemonitstg \
+  --resource-group inflyte-monitor-rg \
+  --query '[0].value' \
+  --output tsv
+```
+
 ### Azure Credentials
 
-#### 1. `AZURE_CREDENTIALS`
+#### 6. `AZURE_CREDENTIALS`
 
 Create an Azure Service Principal with contributor access:
 
@@ -24,7 +58,7 @@ az ad sp create-for-rbac \
 
 Copy the entire JSON output and save it as the `AZURE_CREDENTIALS` secret.
 
-#### 2. `ACR_PASSWORD`
+#### 7. `ACR_PASSWORD`
 
 Get your Azure Container Registry password:
 
@@ -32,51 +66,25 @@ Get your Azure Container Registry password:
 az acr credential show --name inflyteacr --query "passwords[0].value" --output tsv
 ```
 
-### Azure Storage Configuration
-
-#### 3. `AZURE_STORAGE_ACCOUNT`
-
-Value: `inflytemonitstg`
-
-#### 4. `AZURE_STORAGE_CONTAINER`
-
-Value: `dj-monitor`
-
-#### 5. `AZURE_BLOB_NAME`
-
-Value: `dj_list.json`
-
-#### 6. `AZURE_STORAGE_ACCESS_KEY`
-
-Get your storage account access key:
-
-```bash
-az storage account keys list \
-  --account-name inflytemonitstg \
-  --resource-group inflyte-monitor-rg \
-  --query '[0].value' \
-  --output tsv
-```
-
 ### Mailgun Configuration
 
-#### 7. `MAILGUN_DOMAIN`
+#### 8. `MAILGUN_DOMAIN`
 
 Value: `sandbox958cf91827134ddfa60ac99d46fa7b02.mailgun.org`
 
-#### 8. `MAILGUN_API_KEY`
+#### 9. `MAILGUN_API_KEY`
 
 Value: Your Mailgun API key (from Mailgun dashboard)
 
-#### 9. `RECIPIENT_EMAIL`
+#### 10. `RECIPIENT_EMAIL`
 
 Value: `andrew@weisstech.guru` (or your email address)
 
-#### 10. `FROM_EMAIL`
+#### 11. `FROM_EMAIL`
 
 Value: `noreply@sandbox958cf91827134ddfa60ac99d46fa7b02.mailgun.org`
 
-#### 11. `CHECK_INTERVAL_MINUTES`
+#### 12. `CHECK_INTERVAL_MINUTES`
 
 Value: `60`
 
@@ -86,11 +94,12 @@ Here's a quick reference of all required secrets:
 
 | Secret Name | Description | Example Value |
 |-------------|-------------|---------------|
+| `INFLYTE_URLS` | Comma-separated campaign URLs | `https://inflyteapp.com/r/pmqtne,https://inflyteapp.com/r/campaign2` |
 | `AZURE_CREDENTIALS` | Service principal JSON | `{"clientId": "...", ...}` |
 | `ACR_PASSWORD` | Container registry password | From `az acr credential show` |
 | `AZURE_STORAGE_ACCOUNT` | Storage account name | `inflytemonitstg` |
 | `AZURE_STORAGE_CONTAINER` | Blob container name | `dj-monitor` |
-| `AZURE_BLOB_NAME` | Blob file name | `dj_list.json` |
+| `AZURE_BLOB_NAME_PREFIX` | Blob name prefix | `dj_list` |
 | `AZURE_STORAGE_ACCESS_KEY` | Storage access key | From `az storage account keys list` |
 | `MAILGUN_DOMAIN` | Mailgun domain | `sandbox958cf...mailgun.org` |
 | `MAILGUN_API_KEY` | Mailgun API key | From Mailgun dashboard |
@@ -219,7 +228,7 @@ az container create \
 
 ## Best Practices
 
-* **Use git tags for releases:** Tag important commits with versions (e.g.,  `v1.0.0`)
+* **Use git tags for releases:** Tag important commits with versions (e.g.,   `v1.0.0`)
 * **Monitor workflow runs:** Enable email notifications for failed workflows
 * **Test locally first:** Always test Docker builds locally before pushing
 * **Review secrets regularly:** Rotate passwords and keys periodically
