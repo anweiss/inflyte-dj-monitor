@@ -61,7 +61,7 @@ az storage account keys list \
   --query '[0].value' -o tsv
 ```
 
-See [AZURE_SETUP.md](AZURE_SETUP.md) for detailed setup instructions.
+See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for complete deployment instructions (Azure Storage, Container Registry, GitHub Actions).
 
 ### 3. Mailgun Setup
 
@@ -390,6 +390,7 @@ Pull requests welcome! For major changes, please open an issue first.
 ## Support
 
 For issues or questions:
+
 1. Check the [Troubleshooting](#troubleshooting) section
-2. Review [AZURE_SETUP.md](AZURE_SETUP.md) for Azure configuration
+2. Review [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for deployment configuration
 3. Open an issue on GitHub
