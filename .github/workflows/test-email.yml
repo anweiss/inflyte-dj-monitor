@@ -80,8 +80,10 @@ jobs:
         ---
         This email was sent by the Inflyte DJ Monitor testing system.
         EOM
-        fi                echo "Sending test email to: $RECIPIENT_EMAIL"
-                echo "Subject: $SUBJECT"
+        fi
+        
+        echo "Sending test email to: $RECIPIENT_EMAIL"
+        echo "Subject: $SUBJECT"
         
         RESPONSE=$(curl -s -w "\n%{http_code}" --user "api:$MAILGUN_API_KEY" \
             "https://api.mailgun.net/v3/$MAILGUN_DOMAIN/messages" \
