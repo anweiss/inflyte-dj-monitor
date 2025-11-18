@@ -6,6 +6,8 @@ use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::env;
+use std::fs;
+use std::path::PathBuf;
 use std::time::Duration;
 use tokio::time;
 
@@ -13,8 +15,12 @@ use tokio::time;
 #[command(author, version, about = "Monitor inflyteapp.com URLs for DJ changes", long_about = None)]
 struct Args {
     /// The inflyteapp.com URLs to monitor (comma-separated or multiple --url flags)
-    #[arg(short, long, value_delimiter = ',', num_args = 1..)]
+    #[arg(short, long, value_delimiter = ',', num_args = 0..)]
     url: Vec<String>,
+
+    /// Path to a file containing URLs to monitor (one URL per line, # for comments)
+    #[arg(short, long)]
+    file: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -109,6 +115,25 @@ fn extract_campaign_name(url: &str) -> String {
         .next()
         .unwrap_or("unknown")
         .to_string()
+}
+
+/// Read URLs from a file, ignoring comments and blank lines
+fn read_urls_from_file(path: &PathBuf) -> Result<Vec<String>> {
+    let content = fs::read_to_string(path)
+        .with_context(|| format!("Failed to read URL file: {}", path.display()))?;
+
+    let urls: Vec<String> = content
+        .lines()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .map(|line| line.to_string())
+        .collect();
+
+    if urls.is_empty() {
+        anyhow::bail!("No valid URLs found in file: {}", path.display());
+    }
+
+    Ok(urls)
 }
 
 /// Extract track artist and title from the webpage
@@ -569,15 +594,27 @@ async fn main() -> Result<()> {
     // Parse command-line arguments
     let args = Args::parse();
 
-    if args.url.is_empty() {
-        anyhow::bail!("At least one URL must be provided via --url");
+    // Collect URLs from both command-line args and file
+    let mut urls = args.url.clone();
+    
+    if let Some(file_path) = &args.file {
+        let file_urls = read_urls_from_file(file_path)?;
+        urls.extend(file_urls);
+    }
+
+    // Remove duplicates while preserving order
+    let mut seen = HashSet::new();
+    urls.retain(|url| seen.insert(url.clone()));
+
+    if urls.is_empty() {
+        anyhow::bail!("At least one URL must be provided via --url or --file");
     }
 
     println!("🎵 Inflyte DJ Monitor Starting...");
-    println!("Monitoring {} campaign(s):\n", args.url.len());
+    println!("Monitoring {} campaign(s):\n", urls.len());
 
     // Load configuration from environment variables
-    let mut config = Config::from_env(args.url)?;
+    let mut config = Config::from_env(urls)?;
 
     println!("Configuration:");
     println!("  Azure Storage Account: {}", config.storage_account);

@@ -8,3 +8,6 @@
 # Local testing files (DJ list now stored in S3)
 dj_list.json
 dj_list.json.backup
+
+# Local URL configuration (keep urls.txt.example but ignore actual urls.txt)
+urls.txt

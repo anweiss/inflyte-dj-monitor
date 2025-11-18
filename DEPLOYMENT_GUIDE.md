@@ -163,7 +163,7 @@ Add the following secrets:
 
 | Secret Name | Value | How to Get |
 |------------|-------|------------|
-| `INFLYTE_URLS` | `https://inflyteapp.com/r/campaign1,https://inflyteapp.com/r/campaign2` | Your campaign URLs (comma-separated) |
+| `INFLYTE_URLS` | `https://inflyteapp.com/r/campaign1,https://inflyteapp.com/r/campaign2` | Your campaign URLs (comma-separated) - Optional if using URLs file |
 | `AZURE_CLIENT_ID` | From `$APP_ID` above | The app registration client ID |
 | `AZURE_TENANT_ID` | `az account show --query tenantId -o tsv` | Your Azure tenant ID |
 | `AZURE_SUBSCRIPTION_ID` | `az account show --query id -o tsv` | Your subscription ID |
@@ -178,7 +178,26 @@ Add the following secrets:
 | `FROM_EMAIL` | `noreply@your-domain.mailgun.org` | Sender email |
 | `CHECK_INTERVAL_MINUTES` | `60` | Check frequency in minutes |
 
-#### 4. Deploy
+#### 4. Configure URL List (Optional)
+
+You can configure campaign URLs in two ways:
+
+**Option 1: Environment Variable** (via GitHub Secret `INFLYTE_URLS`)
+- Set comma-separated URLs in the secret
+- Simple for a few campaigns
+
+**Option 2: URLs File** (recommended for many campaigns)
+- Create a `urls.txt` file in your repository
+- One URL per line, `#` for comments
+- Example:
+  ```text
+  # Production Campaigns
+  https://inflyteapp.com/r/campaign1
+  https://inflyteapp.com/r/campaign2
+  ```
+- The Docker container will automatically use this file if present
+
+#### 5. Deploy
 
 Push your code to the `main` branch:
 
@@ -195,7 +214,7 @@ GitHub Actions will automatically:
 
 Monitor the deployment in the **Actions** tab of your GitHub repository.
 
-#### 5. Verify Deployment
+#### 6. Verify Deployment
 
 ```bash
 # Check container status
@@ -268,6 +287,7 @@ STORAGE_KEY=$(az storage account keys list \
 #### 4. Deploy Container Instance
 
 ```bash
+# Option A: Using INFLYTE_URLS environment variable
 az container create \
   --resource-group inflyte-monitor-rg \
   --name inflyte-monitor \
@@ -291,6 +311,10 @@ az container create \
   --secure-environment-variables \
     AZURE_STORAGE_ACCESS_KEY=${STORAGE_KEY} \
     MAILGUN_API_KEY=your-mailgun-api-key
+
+# Option B: Using Azure Files for urls.txt (recommended for many campaigns)
+# First, create an Azure File Share and upload urls.txt
+# See: https://docs.microsoft.com/azure/container-instances/container-instances-volume-azure-files
 ```
 
 **Important:** Replace `your-domain.mailgun.org` , `you@example.com` , and `your-mailgun-api-key` with your actual values.
@@ -341,13 +365,26 @@ FROM_EMAIL=noreply@inflyte.com
 CHECK_INTERVAL_MINUTES=60
 ```
 
-#### 2. Run with Cargo
+#### 2. Configure URLs
+
+Create a `urls.txt` file (recommended):
 
 ```bash
+cp urls.txt.example urls.txt
+# Edit urls.txt to add your campaign URLs
+```
+
+#### 3. Run with Cargo
+
+```bash
+# Using URLs file
+cargo run --release -- --file urls.txt
+
+# Or using command-line
 cargo run --release -- --url https://inflyteapp.com/r/pmqtne,https://inflyteapp.com/r/campaign2
 ```
 
-#### 3. Run as Background Service (Linux)
+#### 4. Run as Background Service (Linux)
 
 Create systemd service file `/etc/systemd/system/inflyte-monitor.service` :
 
@@ -361,7 +398,7 @@ Type=simple
 User=youruser
 WorkingDirectory=/path/to/inflyte
 EnvironmentFile=/path/to/inflyte/.env
-ExecStart=/path/to/inflyte/target/release/inflyte --url https://inflyteapp.com/r/pmqtne,https://inflyteapp.com/r/campaign2
+ExecStart=/path/to/inflyte/target/release/inflyte --file /path/to/inflyte/urls.txt
 Restart=always
 
 [Install]

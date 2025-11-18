@@ -73,6 +73,9 @@ jobs:
 
     - name: Deploy to Azure Container Instance
       run: |
+        # Note: URLs are configured via INFLYTE_URLS environment variable.
+        # Alternative: Use Azure Files to mount a urls.txt file at /home/inflyte/urls.txt
+        # See DEPLOYMENT_GUIDE.md for details on file-based configuration.
         az container create \
           --resource-group ${{ env.RESOURCE_GROUP }} \
           --name ${{ env.CONTAINER_NAME }} \

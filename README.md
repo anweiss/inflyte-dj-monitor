@@ -8,6 +8,7 @@ A Rust tool that periodically scrapes multiple Inflyte campaign URLs and monitor
 * 📊 **DJ Detection** - Extracts DJ names, comments, and star ratings from the Support section for each campaign
 * ⭐ **Comment & Rating Tracking** - Monitors DJ feedback including text comments and star ratings
 * 🎯 **Multi-Campaign Support** - Monitor multiple Inflyte campaigns simultaneously
+* 📁 **Flexible URL Configuration** - Load URLs from command-line arguments or a flat file
 * ☁️ **Cloud Storage** - Stores DJ lists per campaign in Azure Blob Storage for persistent, cloud-based tracking
 * 📧 **Email Alerts** - Sends beautiful HTML email notifications via Mailgun with campaign details, comments, and ratings
 
@@ -100,6 +101,8 @@ CHECK_INTERVAL_MINUTES=60
 
 ### 5. Run the Monitor
 
+#### Option 1: Using Command-Line URLs
+
 ```bash
 # Load environment and run with one or more URLs
 cargo run --release -- --url https://inflyteapp.com/r/pmqtne
@@ -109,6 +112,41 @@ cargo run --release -- --url https://inflyteapp.com/r/campaign1,https://inflytea
 
 # Or use multiple --url flags
 cargo run --release -- --url https://inflyteapp.com/r/campaign1 --url https://inflyteapp.com/r/campaign2
+```
+
+#### Option 2: Using a URL File (Recommended for Multiple Campaigns)
+
+Create a `urls.txt` file with one URL per line:
+
+```bash
+# Copy the example file
+cp urls.txt.example urls.txt
+
+# Edit urls.txt to add your campaign URLs
+# Lines starting with # are comments and will be ignored
+```
+
+Example `urls.txt`:
+
+```text
+# My Inflyte Campaigns
+https://inflyteapp.com/r/pmqtne
+https://inflyteapp.com/r/campaign2
+https://inflyteapp.com/r/campaign3
+```
+
+Then run:
+
+```bash
+cargo run --release -- --file urls.txt
+```
+
+#### Option 3: Combine Both Methods
+
+You can use both command-line URLs and a file simultaneously:
+
+```bash
+cargo run --release -- --url https://inflyteapp.com/r/extra --file urls.txt
 ```
 
 ## How It Works
@@ -248,11 +286,14 @@ View the full list at: https://inflyteapp.com/r/pmqtne
 ### Running Locally
 
 ```bash
-# Single campaign
+# Single campaign via command-line
 cargo run --release -- --url https://inflyteapp.com/r/pmqtne
 
-# Multiple campaigns
+# Multiple campaigns via command-line
 cargo run --release -- --url https://inflyteapp.com/r/campaign1,https://inflyteapp.com/r/campaign2
+
+# Using a URL file (recommended)
+cargo run --release -- --file urls.txt
 ```
 
 ### Running as a Background Service (Linux)
@@ -269,7 +310,7 @@ Type=simple
 User=youruser
 WorkingDirectory=/path/to/inflyte
 EnvironmentFile=/path/to/inflyte/.env
-ExecStart=/path/to/inflyte/target/release/inflyte
+ExecStart=/path/to/inflyte/target/release/inflyte --file /path/to/inflyte/urls.txt
 Restart=always
 
 [Install]
