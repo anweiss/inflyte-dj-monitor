@@ -39,11 +39,4 @@ WORKDIR /home/inflyte
 # Run the application
 # Option 1: Use INFLYTE_URLS environment variable (comma-separated URLs)
 # Option 2: Mount a urls.txt file at /home/inflyte/urls.txt
-CMD if [ -f urls.txt ]; then \
-    inflyte --file urls.txt; \
-    elif [ -n "${INFLYTE_URLS}" ]; then \
-    inflyte --url ${INFLYTE_URLS}; \
-    else \
-    echo "Error: Either mount urls.txt or set INFLYTE_URLS environment variable"; \
-    exit 1; \
-    fi
+CMD ["sh", "-c", "if [ -f urls.txt ]; then inflyte --file urls.txt; elif [ -n \"${INFLYTE_URLS}\" ]; then inflyte --url ${INFLYTE_URLS}; else echo 'Error: Either mount urls.txt or set INFLYTE_URLS environment variable'; exit 1; fi"]

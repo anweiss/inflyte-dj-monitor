@@ -31,7 +31,7 @@ A Rust tool that periodically scrapes multiple Inflyte campaign URLs and monitor
 
 * **Rust** (latest stable version)
 * **Azure Account** with Storage access
-* **Mailgun Account** (free tier available at https://mailgun.com)
+* **Mailgun Account** (free tier available at <https://mailgun.com>)
 * **Azure Storage credentials** configured
 
 ## Quick Start
@@ -80,7 +80,7 @@ See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for complete deployment instructi
 
 ### 3. Mailgun Setup
 
-1. Sign up at https://mailgun.com (free tier: 5, 000 emails/month)
+1. Sign up at <https://mailgun.com> (free tier: 5, 000 emails/month)
 2. Verify your domain OR use the provided sandbox domain
 3. Get your API key from: Settings → API Keys
 4. For sandbox domains: Add authorized recipients in Sending → Sending domains → Authorized Recipients
@@ -111,6 +111,7 @@ CHECK_INTERVAL_MINUTES=60
 ```
 
 **Azure Credentials:** Use either:
+
 1. Storage Access Key (recommended for development)
 2. SAS Token (for limited-time access)
 
@@ -166,7 +167,7 @@ cargo run --release -- --url https://inflyteapp.com/r/extra --file urls.txt
 
 ## How It Works
 
-```
+```text
 ┌─────────────────┐
 │  Initial Run    │
 │  - Fetch DJs    │
@@ -206,7 +207,7 @@ cargo run --release -- --url https://inflyteapp.com/r/extra --file urls.txt
 
 ### Initial Run
 
-```
+```text
 🎵 Inflyte DJ Monitor Starting...
 Monitoring 2 campaign(s):
 
@@ -234,7 +235,7 @@ Initial run for campaign2 - found 15 DJs
 
 ### When New DJs Are Detected
 
-```
+```text
 Checking pmqtne for new DJs...
 
 🚨 ALERT: New DJ support detected for pmqtne!
@@ -249,7 +250,7 @@ Checking pmqtne for new DJs...
 
 ### No Changes
 
-```
+```text
 Checking pmqtne for new DJs...
 No new DJs found for pmqtne. Total: 27
 
@@ -265,7 +266,7 @@ When new DJs are detected, you'll receive a beautifully formatted HTML email wit
 
 **Body:**
 
-```
+```text
 🎵 Inflyte DJ Monitor Alert
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -428,7 +429,7 @@ For less frequent checks (e.g., once per day), you can run this as an Azure Func
 * Verify your Mailgun API key is correct
 * For sandbox domains, ensure recipient email is authorized
 * Check Mailgun domain is correct (include `.mailgun.org` for sandbox)
-* Review Mailgun logs at https://app.mailgun.com/logs
+* Review Mailgun logs at <https://app.mailgun.com/logs>
 
 ### "Unable to authenticate with Azure Storage"
 
