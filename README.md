@@ -7,7 +7,7 @@ A Rust tool that periodically scrapes multiple Inflyte campaign URLs and monitor
 **Status:** 🟢 Active  
 **Total Campaigns:** 1  
 **Check Interval:** Every 60 minutes  
-**Last Updated:** 2025-11-18 15:20 UTC
+**Last Updated:** 2025-11-18 15:24 UTC
 
 | Campaign | Track | DJs | Last Checked |
 |----------|-------|-----|--------------|
