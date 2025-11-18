@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use axum::{Router, extract::State, response::Json, routing::get};
 use azure_storage::StorageCredentials;
 use azure_storage_blobs::prelude::*;
 use clap::Parser;
@@ -8,8 +9,11 @@ use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::RwLock;
 use tokio::time;
+use tower_http::cors::CorsLayer;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Monitor inflyteapp.com URLs for DJ changes", long_about = None)]
@@ -23,7 +27,7 @@ struct Args {
     file: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 struct Campaign {
     url: String,
     name: String,
@@ -42,6 +46,7 @@ struct Config {
     recipient_email: String,
     from_email: String,
     check_interval_minutes: u64,
+    http_port: u16,
 }
 
 impl Config {
@@ -92,6 +97,10 @@ impl Config {
                 .unwrap_or_else(|_| "60".to_string())
                 .parse()
                 .context("CHECK_INTERVAL_MINUTES must be a valid number")?,
+            http_port: env::var("HTTP_PORT")
+                .unwrap_or_else(|_| "8080".to_string())
+                .parse()
+                .context("HTTP_PORT must be a valid number")?,
         })
     }
 }
@@ -519,8 +528,92 @@ async fn send_email_alert(
     }
 }
 
+/// Shared application state for HTTP server
+#[derive(Clone)]
+struct AppState {
+    config: Arc<Config>,
+    campaign_stats: Arc<RwLock<Vec<CampaignStats>>>,
+}
+
+/// Campaign statistics for HTTP endpoint
+#[derive(Debug, Clone, Serialize)]
+struct CampaignStats {
+    name: String,
+    url: String,
+    track_title: Option<String>,
+    dj_count: usize,
+    last_checked: Option<String>,
+}
+
+/// Health check endpoint
+async fn health_check() -> &'static str {
+    "OK"
+}
+
+/// Get current campaigns being monitored
+async fn get_campaigns(State(state): State<AppState>) -> Json<serde_json::Value> {
+    let stats = state.campaign_stats.read().await;
+    Json(serde_json::json!({
+        "status": "active",
+        "campaigns": stats.clone(),
+        "total_campaigns": stats.len(),
+        "check_interval_minutes": state.config.check_interval_minutes,
+    }))
+}
+
+/// Update campaign statistics
+async fn update_campaign_stats(
+    state: &AppState,
+    campaign: &Campaign,
+    dj_count: usize,
+) -> Result<()> {
+    let mut stats = state.campaign_stats.write().await;
+
+    // Find existing stat or create new one
+    if let Some(stat) = stats.iter_mut().find(|s| s.name == campaign.name) {
+        stat.dj_count = dj_count;
+        stat.last_checked = Some(chrono::Utc::now().to_rfc3339());
+    } else {
+        stats.push(CampaignStats {
+            name: campaign.name.clone(),
+            url: campaign.url.clone(),
+            track_title: campaign.track_title.clone(),
+            dj_count,
+            last_checked: Some(chrono::Utc::now().to_rfc3339()),
+        });
+    }
+
+    Ok(())
+}
+
+/// Start HTTP server
+async fn start_http_server(state: AppState, port: u16) {
+    let app = Router::new()
+        .route("/health", get(health_check))
+        .route("/campaigns", get(get_campaigns))
+        .layer(CorsLayer::permissive())
+        .with_state(state);
+
+    let addr = format!("0.0.0.0:{}", port);
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .expect("Failed to bind HTTP server");
+
+    println!("🌐 HTTP server listening on http://{}", addr);
+    println!("   - Health: http://{}/health", addr);
+    println!("   - Campaigns: http://{}/campaigns\n", addr);
+
+    axum::serve(listener, app)
+        .await
+        .expect("HTTP server failed");
+}
+
 /// Check for new DJs and send alerts
-async fn check_for_new_djs(config: &Config, campaign: &Campaign) -> Result<()> {
+async fn check_for_new_djs(
+    config: &Config,
+    campaign: &Campaign,
+    state: Option<&AppState>,
+) -> Result<()> {
     println!("Checking {} for new DJs...", campaign.name);
 
     let current_djs = fetch_dj_list(&campaign.url).await?;
@@ -535,6 +628,12 @@ async fn check_for_new_djs(config: &Config, campaign: &Campaign) -> Result<()> {
         println!("Current DJs: {:?}", current_djs);
         save_djs(config, campaign, &current_djs).await?;
         println!("✅ Saved initial DJ list for {}", campaign.name);
+
+        // Update campaign stats
+        if let Some(state) = state {
+            update_campaign_stats(state, campaign, current_djs.len()).await?;
+        }
+
         return Ok(());
     } else {
         let new_djs: Vec<_> = current_djs.difference(&previous_djs).collect();
@@ -584,6 +683,11 @@ async fn check_for_new_djs(config: &Config, campaign: &Campaign) -> Result<()> {
         }
 
         save_djs(config, campaign, &current_djs).await?;
+
+        // Update campaign stats
+        if let Some(state) = state {
+            update_campaign_stats(state, campaign, current_djs.len()).await?;
+        }
     }
 
     Ok(())
@@ -649,9 +753,22 @@ async fn main() -> Result<()> {
 
     println!("Azure Blob Storage configured\n");
 
+    // Create shared application state
+    let app_state = AppState {
+        config: Arc::new(config.clone()),
+        campaign_stats: Arc::new(RwLock::new(Vec::new())),
+    };
+
+    // Start HTTP server in background
+    let http_port = config.http_port;
+    let server_state = app_state.clone();
+    tokio::spawn(async move {
+        start_http_server(server_state, http_port).await;
+    });
+
     // Run initial check for all campaigns
     for campaign in &config.campaigns {
-        if let Err(e) = check_for_new_djs(&config, campaign).await {
+        if let Err(e) = check_for_new_djs(&config, campaign, Some(&app_state)).await {
             eprintln!("Error during check for {}: {}", campaign.name, e);
         }
     }
@@ -663,7 +780,7 @@ async fn main() -> Result<()> {
     loop {
         interval.tick().await;
         for campaign in &config.campaigns {
-            if let Err(e) = check_for_new_djs(&config, campaign).await {
+            if let Err(e) = check_for_new_djs(&config, campaign, Some(&app_state)).await {
                 eprintln!("Error during check for {}: {}", campaign.name, e);
             }
         }

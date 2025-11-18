@@ -2,6 +2,19 @@
 
 A Rust tool that periodically scrapes multiple Inflyte campaign URLs and monitors the Support section for new DJs, with cloud storage via Azure Blob Storage and email notifications via Mailgun.
 
+## 🎵 Currently Monitored Campaigns
+
+**Status:** 🔴 Not Yet Deployed  
+**Total Campaigns:** 0  
+**Check Interval:** N/A  
+**Last Updated:** Awaiting first deployment
+
+| Campaign | Track | DJs | Last Checked |
+|----------|-------|-----|--------------|
+| _No campaigns active yet_ | - | - | - |
+
+> This section is automatically updated every 6 hours by querying the deployed application.
+
 ## Features
 
 * 🔍 **Web Scraping** - Automatically scrapes multiple Inflyte campaign pages at configurable intervals
@@ -11,6 +24,8 @@ A Rust tool that periodically scrapes multiple Inflyte campaign URLs and monitor
 * 📁 **Flexible URL Configuration** - Load URLs from command-line arguments or a flat file
 * ☁️ **Cloud Storage** - Stores DJ lists per campaign in Azure Blob Storage for persistent, cloud-based tracking
 * 📧 **Email Alerts** - Sends beautiful HTML email notifications via Mailgun with campaign details, comments, and ratings
+* 🌐 **Live Status API** - HTTP endpoint exposing real-time campaign monitoring status
+* 📝 **Auto-Updated README** - GitHub Actions automatically updates this README with current campaign stats every 6 hours
 
 ## Prerequisites
 
@@ -280,6 +295,52 @@ View the full list at: https://inflyteapp.com/r/pmqtne
 | `RECIPIENT_EMAIL` | ✅ Yes | - | Email address to receive alerts |
 | `FROM_EMAIL` | No | `noreply@inflyte.com` | Sender email address |
 | `CHECK_INTERVAL_MINUTES` | No | `60` | Minutes between checks |
+| `HTTP_PORT` | No | `8080` | Port for status API endpoint |
+
+## API Endpoints
+
+The application exposes HTTP endpoints for monitoring status:
+
+### `GET /health`
+
+Health check endpoint that returns `OK` if the service is running.
+
+**Example:**
+
+```bash
+curl http://localhost:8080/health
+```
+
+### `GET /campaigns`
+
+Returns current campaign monitoring status in JSON format.
+
+**Example Response:**
+
+```json
+{
+  "status": "active",
+  "total_campaigns": 2,
+  "check_interval_minutes": 60,
+  "campaigns": [
+    {
+      "name": "pmqtne",
+      "url": "https://inflyteapp.com/r/pmqtne",
+      "track_title": "Artist - Track Name",
+      "dj_count": 27,
+      "last_checked": "2025-11-18T15:30:00Z"
+    }
+  ]
+}
+```
+
+**Example:**
+
+```bash
+curl http://localhost:8080/campaigns
+```
+
+When deployed to Azure Container Instances, these endpoints are publicly accessible via the container's IP address on port 8080.
 
 ## Deployment Options
 
