@@ -147,11 +147,49 @@ fn read_urls_from_file(path: &PathBuf) -> Result<Vec<String>> {
 
 /// Extract track artist and title from the webpage
 async fn fetch_track_title(url: &str) -> Option<String> {
-    let response = reqwest::get(url).await.ok()?.text().await.ok()?;
-    let document = Html::parse_document(&response);
+    use std::time::Duration;
+    
+    eprintln!("DEBUG: Fetching track title from {}", url);
+    
+    // Create a client with timeout
+    let client = match reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("DEBUG: Failed to create HTTP client: {}", e);
+            return None;
+        }
+    };
+    
+    // Fetch the page with timeout
+    let response = match client.get(url).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("DEBUG: Failed to fetch page: {}", e);
+            return None;
+        }
+    };
+    
+    let text = match response.text().await {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("DEBUG: Failed to read response text: {}", e);
+            return None;
+        }
+    };
+    
+    let document = Html::parse_document(&text);
 
     // Look for h1 tag which typically contains "Artist - Track Title"
-    let h1_selector = Selector::parse("h1").ok()?;
+    let h1_selector = match Selector::parse("h1") {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("DEBUG: Failed to parse h1 selector: {:?}", e);
+            return None;
+        }
+    };
 
     for element in document.select(&h1_selector) {
         let text = element.text().collect::<String>();
@@ -159,10 +197,12 @@ async fn fetch_track_title(url: &str) -> Option<String> {
 
         // Skip if it's empty or looks like a navigation element
         if !trimmed.is_empty() && trimmed.contains('-') && !trimmed.contains("Inflyte") {
+            eprintln!("DEBUG: Found track title: {}", trimmed);
             return Some(trimmed.to_string());
         }
     }
 
+    eprintln!("DEBUG: No track title found in h1 tags");
     None
 }
 
