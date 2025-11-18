@@ -182,20 +182,23 @@ Add the following secrets:
 
 You can configure campaign URLs in two ways:
 
-**Option 1: Environment Variable** (via GitHub Secret `INFLYTE_URLS`)
-- Set comma-separated URLs in the secret
-- Simple for a few campaigns
+**Option 1: Environment Variable** (via GitHub Secret `INFLYTE_URLS` )
+* Set comma-separated URLs in the secret
+* Simple for a few campaigns
 
 **Option 2: URLs File** (recommended for many campaigns)
-- Create a `urls.txt` file in your repository
-- One URL per line, `#` for comments
-- Example:
-  ```text
+* Create a `urls.txt` file in your repository
+* One URL per line,  `#` for comments
+* Example:
+  
+
+```text
   # Production Campaigns
   https://inflyteapp.com/r/campaign1
   https://inflyteapp.com/r/campaign2
   ```
-- The Docker container will automatically use this file if present
+
+* The Docker container will automatically use this file if present
 
 #### 5. Deploy
 

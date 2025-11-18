@@ -126,7 +126,7 @@ cp urls.txt.example urls.txt
 # Lines starting with # are comments and will be ignored
 ```
 
-Example `urls.txt`:
+Example `urls.txt` :
 
 ```text
 # My Inflyte Campaigns

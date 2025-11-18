@@ -596,7 +596,7 @@ async fn main() -> Result<()> {
 
     // Collect URLs from both command-line args and file
     let mut urls = args.url.clone();
-    
+
     if let Some(file_path) = &args.file {
         let file_urls = read_urls_from_file(file_path)?;
         urls.extend(file_urls);
