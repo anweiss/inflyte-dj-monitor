@@ -29,6 +29,7 @@ jobs:
       id: fetch_campaigns
       run: |
         # Get the public IP of the Azure Container Instance
+        echo "Fetching container information..."
         CONTAINER_IP=$(az container show \
           --resource-group inflyte-monitor-rg \
           --name inflyte-monitor \
@@ -36,22 +37,52 @@ jobs:
           --output tsv 2>/dev/null || echo "")
         
         if [ -z "$CONTAINER_IP" ]; then
-          echo "Could not get container IP, using fallback data"
+          echo "❌ Could not get container IP address"
+          echo "Container may not be deployed yet or doesn't have a public IP"
+          echo "status=unavailable" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        echo "✅ Container IP: $CONTAINER_IP"
+        
+        # Check container state
+        CONTAINER_STATE=$(az container show \
+          --resource-group inflyte-monitor-rg \
+          --name inflyte-monitor \
+          --query instanceView.state \
+          --output tsv 2>/dev/null || echo "Unknown")
+        
+        echo "Container State: $CONTAINER_STATE"
+        
+        if [ "$CONTAINER_STATE" != "Running" ]; then
+          echo "❌ Container is not running (state: $CONTAINER_STATE)"
           echo "status=unavailable" >> $GITHUB_OUTPUT
           exit 0
         fi
         
         # Fetch campaign data from the HTTP endpoint
-        RESPONSE=$(curl -s --connect-timeout 10 "http://${CONTAINER_IP}:8080/campaigns" || echo "{}")
+        echo "Fetching campaign data from http://${CONTAINER_IP}:8080/campaigns"
+        RESPONSE=$(curl -s --connect-timeout 10 --max-time 30 "http://${CONTAINER_IP}:8080/campaigns" || echo "{}")
+        
+        echo "Response received (first 200 chars): ${RESPONSE:0:200}"
         
         if [ -z "$RESPONSE" ] || [ "$RESPONSE" = "{}" ]; then
-          echo "Could not fetch campaign data"
+          echo "❌ Could not fetch campaign data - endpoint may not be ready"
+          echo "Check if the application started successfully and port 8080 is exposed"
+          echo "status=unavailable" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        # Validate JSON
+        if ! echo "$RESPONSE" | jq empty 2>/dev/null; then
+          echo "❌ Response is not valid JSON"
           echo "status=unavailable" >> $GITHUB_OUTPUT
           exit 0
         fi
         
         # Save the response for processing
         echo "$RESPONSE" > campaigns.json
+        echo "✅ Successfully fetched campaign data"
         echo "status=available" >> $GITHUB_OUTPUT
       env:
         AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -63,6 +94,12 @@ jobs:
       run: |
         chmod +x .github/scripts/update_readme.py
         python3 .github/scripts/update_readme.py
+
+    - name: Update README with unavailable status
+      if: steps.fetch_campaigns.outputs.status == 'unavailable'
+      run: |
+        echo "Campaign data not available - container may be deploying or not ready"
+        echo "Skipping README update this cycle"
 
     - name: Commit and push if changed
       run: |
