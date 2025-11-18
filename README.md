@@ -391,8 +391,7 @@ sudo systemctl status inflyte-monitor
 
 For a fully managed, always-on deployment with automatic CI/CD, see:
 
-* **[AZURE_CONTAINER_DEPLOYMENT.md](AZURE_CONTAINER_DEPLOYMENT.md)** - Manual Docker deployment
-* **[GITHUB_ACTIONS_SETUP.md](GITHUB_ACTIONS_SETUP.md)** - Automated CI/CD with GitHub Actions
+* **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Complete deployment guide including Docker, Azure Container Registry, and GitHub Actions
 
 Quick summary:
 
