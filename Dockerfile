@@ -37,16 +37,8 @@ USER inflyte
 WORKDIR /home/inflyte
 
 # Run the application
-# Option 1: Use INFLYTE_URLS environment variable (comma-separated URLs)
-# Option 2: Mount a urls.txt file at /home/inflyte/urls.txt
-CMD ["sh", "-c", "echo 'Starting Inflyte DJ Monitor...'; \
-    if [ -f urls.txt ]; then \
-    echo 'Using urls.txt file'; \
-    exec inflyte --file urls.txt; \
-    elif [ -n \"${INFLYTE_URLS}\" ]; then \
-    echo \"Using INFLYTE_URLS: ${INFLYTE_URLS}\"; \
-    exec inflyte --url \"${INFLYTE_URLS}\"; \
-    else \
-    echo 'Error: Either mount urls.txt or set INFLYTE_URLS environment variable' >&2; \
-    exit 1; \
-    fi"]
+# URLs can be provided via:
+# 1. INFLYTE_URLS environment variable (comma-separated)
+# 2. Mount a urls.txt file at /home/inflyte/urls.txt and use --file flag
+# 3. Pass --url flags directly
+CMD ["sh", "-c", "if [ -f urls.txt ]; then exec inflyte --file urls.txt; else exec inflyte; fi"]

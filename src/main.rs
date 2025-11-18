@@ -760,6 +760,19 @@ async fn main() -> Result<()> {
         urls.extend(file_urls);
     }
 
+    // If no URLs provided via args, try INFLYTE_URLS environment variable
+    if urls.is_empty()
+        && let Ok(env_urls) = env::var("INFLYTE_URLS")
+    {
+        debug!(env_urls = %env_urls, "Reading URLs from INFLYTE_URLS environment variable");
+        let env_url_list: Vec<String> = env_urls
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        urls.extend(env_url_list);
+    }
+
     // Remove duplicates while preserving order
     let mut seen = HashSet::new();
     urls.retain(|url| seen.insert(url.clone()));
