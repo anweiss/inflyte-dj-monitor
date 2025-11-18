@@ -4,14 +4,14 @@ A Rust tool that periodically scrapes multiple Inflyte campaign URLs and monitor
 
 ## 🎵 Currently Monitored Campaigns
 
-**Status:** 🔴 Not Yet Deployed  
-**Total Campaigns:** 0  
-**Check Interval:** N/A  
-**Last Updated:** Awaiting first deployment
+**Status:** 🟢 Active  
+**Total Campaigns:** 1  
+**Check Interval:** Every 60 minutes  
+**Last Updated:** 2025-11-18 15:20 UTC
 
 | Campaign | Track | DJs | Last Checked |
 |----------|-------|-----|--------------|
-| _No campaigns active yet_ | - | - | - |
+| [pmqtne](https://inflyteapp.com/r/pmqtne) | pmqtne | 37 | 2025-11-18 15:18 |
 
 > This section is automatically updated every 6 hours by querying the deployed application.
 
