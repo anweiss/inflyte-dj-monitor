@@ -697,11 +697,14 @@ async fn check_for_new_djs(
 async fn main() -> Result<()> {
     // Parse command-line arguments
     let args = Args::parse();
+    
+    eprintln!("DEBUG: Parsed arguments");
 
     // Collect URLs from both command-line args and file
     let mut urls = args.url.clone();
 
     if let Some(file_path) = &args.file {
+        eprintln!("DEBUG: Reading URLs from file: {:?}", file_path);
         let file_urls = read_urls_from_file(file_path)?;
         urls.extend(file_urls);
     }
@@ -709,6 +712,8 @@ async fn main() -> Result<()> {
     // Remove duplicates while preserving order
     let mut seen = HashSet::new();
     urls.retain(|url| seen.insert(url.clone()));
+    
+    eprintln!("DEBUG: Total URLs collected: {}", urls.len());
 
     if urls.is_empty() {
         anyhow::bail!("At least one URL must be provided via --url or --file");
@@ -716,9 +721,15 @@ async fn main() -> Result<()> {
 
     println!("🎵 Inflyte DJ Monitor Starting...");
     println!("Monitoring {} campaign(s):\n", urls.len());
+    
+    eprintln!("DEBUG: Loading configuration from environment");
 
     // Load configuration from environment variables
     let mut config = Config::from_env(urls)?;
+    
+    eprintln!("DEBUG: Configuration loaded successfully");
+
+    eprintln!("DEBUG: Configuration loaded successfully");
 
     println!("Configuration:");
     println!("  Azure Storage Account: {}", config.storage_account);
@@ -731,15 +742,22 @@ async fn main() -> Result<()> {
         "  Check Interval: {} minutes\n",
         config.check_interval_minutes
     );
+    
+    eprintln!("DEBUG: Fetching track information for {} campaigns", config.campaigns.len());
 
     // Fetch track titles for all campaigns
     println!("Fetching track information...");
     for campaign in &mut config.campaigns {
+        eprintln!("DEBUG: Fetching title for {}", campaign.url);
         if let Some(title) = fetch_track_title(&campaign.url).await {
             campaign.track_title = Some(title);
         }
     }
     println!();
+    
+    eprintln!("DEBUG: Track information fetched");
+
+    eprintln!("DEBUG: Track information fetched");
 
     println!("Campaigns:");
     for campaign in &config.campaigns {
@@ -752,12 +770,16 @@ async fn main() -> Result<()> {
     println!();
 
     println!("Azure Blob Storage configured\n");
+    
+    eprintln!("DEBUG: Creating application state");
 
     // Create shared application state
     let app_state = AppState {
         config: Arc::new(config.clone()),
         campaign_stats: Arc::new(RwLock::new(Vec::new())),
     };
+    
+    eprintln!("DEBUG: Starting HTTP server on port {}", config.http_port);
 
     // Start HTTP server in background
     let http_port = config.http_port;
@@ -765,20 +787,33 @@ async fn main() -> Result<()> {
     tokio::spawn(async move {
         start_http_server(server_state, http_port).await;
     });
+    
+    eprintln!("DEBUG: HTTP server spawned");
+    
+    // Give the server a moment to start
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    
+    eprintln!("DEBUG: Running initial checks for {} campaigns", config.campaigns.len());
 
     // Run initial check for all campaigns
     for campaign in &config.campaigns {
+        eprintln!("DEBUG: Checking campaign: {}", campaign.name);
         if let Err(e) = check_for_new_djs(&config, campaign, Some(&app_state)).await {
             eprintln!("Error during check for {}: {}", campaign.name, e);
         }
     }
+    
+    eprintln!("DEBUG: Initial checks complete, starting periodic loop");
 
     // Set up periodic checks
     let mut interval = time::interval(Duration::from_secs(config.check_interval_minutes * 60));
     interval.tick().await; // First tick completes immediately
+    
+    eprintln!("DEBUG: Entering main monitoring loop");
 
     loop {
         interval.tick().await;
+        eprintln!("DEBUG: Running periodic check");
         for campaign in &config.campaigns {
             if let Err(e) = check_for_new_djs(&config, campaign, Some(&app_state)).await {
                 eprintln!("Error during check for {}: {}", campaign.name, e);
