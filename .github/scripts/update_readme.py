@@ -36,7 +36,10 @@ def main():
                 except:
                     pass
             
-            table_rows.append(f"| [{name}]({url}) | {track} | {dj_count} | {last_checked} |")
+            # Create campaign link with track title or name
+            campaign_link = f"[{track}]({url})" if track != name else f"[{name}]({url})"
+            
+            table_rows.append(f"| {campaign_link} | {name} | {dj_count} | {last_checked} |")
         
         # Create status section
         now = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')

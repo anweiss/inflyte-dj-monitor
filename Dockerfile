@@ -41,12 +41,12 @@ WORKDIR /home/inflyte
 # Option 2: Mount a urls.txt file at /home/inflyte/urls.txt
 CMD ["sh", "-c", "echo 'Starting Inflyte DJ Monitor...'; \
     if [ -f urls.txt ]; then \
-        echo 'Using urls.txt file'; \
-        exec inflyte --file urls.txt; \
+    echo 'Using urls.txt file'; \
+    exec inflyte --file urls.txt; \
     elif [ -n \"${INFLYTE_URLS}\" ]; then \
-        echo \"Using INFLYTE_URLS: ${INFLYTE_URLS}\"; \
-        exec inflyte --url \"${INFLYTE_URLS}\"; \
+    echo \"Using INFLYTE_URLS: ${INFLYTE_URLS}\"; \
+    exec inflyte --url \"${INFLYTE_URLS}\"; \
     else \
-        echo 'Error: Either mount urls.txt or set INFLYTE_URLS environment variable' >&2; \
-        exit 1; \
+    echo 'Error: Either mount urls.txt or set INFLYTE_URLS environment variable' >&2; \
+    exit 1; \
     fi"]

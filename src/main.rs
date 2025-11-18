@@ -697,7 +697,7 @@ async fn check_for_new_djs(
 async fn main() -> Result<()> {
     // Parse command-line arguments
     let args = Args::parse();
-    
+
     eprintln!("DEBUG: Parsed arguments");
 
     // Collect URLs from both command-line args and file
@@ -712,7 +712,7 @@ async fn main() -> Result<()> {
     // Remove duplicates while preserving order
     let mut seen = HashSet::new();
     urls.retain(|url| seen.insert(url.clone()));
-    
+
     eprintln!("DEBUG: Total URLs collected: {}", urls.len());
 
     if urls.is_empty() {
@@ -721,12 +721,12 @@ async fn main() -> Result<()> {
 
     println!("🎵 Inflyte DJ Monitor Starting...");
     println!("Monitoring {} campaign(s):\n", urls.len());
-    
+
     eprintln!("DEBUG: Loading configuration from environment");
 
     // Load configuration from environment variables
     let mut config = Config::from_env(urls)?;
-    
+
     eprintln!("DEBUG: Configuration loaded successfully");
 
     eprintln!("DEBUG: Configuration loaded successfully");
@@ -742,8 +742,11 @@ async fn main() -> Result<()> {
         "  Check Interval: {} minutes\n",
         config.check_interval_minutes
     );
-    
-    eprintln!("DEBUG: Fetching track information for {} campaigns", config.campaigns.len());
+
+    eprintln!(
+        "DEBUG: Fetching track information for {} campaigns",
+        config.campaigns.len()
+    );
 
     // Fetch track titles for all campaigns
     println!("Fetching track information...");
@@ -754,7 +757,7 @@ async fn main() -> Result<()> {
         }
     }
     println!();
-    
+
     eprintln!("DEBUG: Track information fetched");
 
     eprintln!("DEBUG: Track information fetched");
@@ -770,7 +773,7 @@ async fn main() -> Result<()> {
     println!();
 
     println!("Azure Blob Storage configured\n");
-    
+
     eprintln!("DEBUG: Creating application state");
 
     // Create shared application state
@@ -778,7 +781,7 @@ async fn main() -> Result<()> {
         config: Arc::new(config.clone()),
         campaign_stats: Arc::new(RwLock::new(Vec::new())),
     };
-    
+
     eprintln!("DEBUG: Starting HTTP server on port {}", config.http_port);
 
     // Start HTTP server in background
@@ -787,13 +790,16 @@ async fn main() -> Result<()> {
     tokio::spawn(async move {
         start_http_server(server_state, http_port).await;
     });
-    
+
     eprintln!("DEBUG: HTTP server spawned");
-    
+
     // Give the server a moment to start
     tokio::time::sleep(Duration::from_millis(100)).await;
-    
-    eprintln!("DEBUG: Running initial checks for {} campaigns", config.campaigns.len());
+
+    eprintln!(
+        "DEBUG: Running initial checks for {} campaigns",
+        config.campaigns.len()
+    );
 
     // Run initial check for all campaigns
     for campaign in &config.campaigns {
@@ -802,13 +808,13 @@ async fn main() -> Result<()> {
             eprintln!("Error during check for {}: {}", campaign.name, e);
         }
     }
-    
+
     eprintln!("DEBUG: Initial checks complete, starting periodic loop");
 
     // Set up periodic checks
     let mut interval = time::interval(Duration::from_secs(config.check_interval_minutes * 60));
     interval.tick().await; // First tick completes immediately
-    
+
     eprintln!("DEBUG: Entering main monitoring loop");
 
     loop {
