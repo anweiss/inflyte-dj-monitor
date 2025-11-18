@@ -14,6 +14,7 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::time;
 use tower_http::cors::CorsLayer;
+use tracing::{debug, error, info, warn};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Monitor inflyteapp.com URLs for DJ changes", long_about = None)]
@@ -148,9 +149,9 @@ fn read_urls_from_file(path: &PathBuf) -> Result<Vec<String>> {
 /// Extract track artist and title from the webpage
 async fn fetch_track_title(url: &str) -> Option<String> {
     use std::time::Duration;
-    
-    eprintln!("DEBUG: Fetching track title from {}", url);
-    
+
+    debug!(url = %url, "Fetching track title");
+
     // Create a client with timeout
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
@@ -158,35 +159,35 @@ async fn fetch_track_title(url: &str) -> Option<String> {
     {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("DEBUG: Failed to create HTTP client: {}", e);
+            warn!(error = %e, "Failed to create HTTP client");
             return None;
         }
     };
-    
+
     // Fetch the page with timeout
     let response = match client.get(url).send().await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("DEBUG: Failed to fetch page: {}", e);
+            warn!(url = %url, error = %e, "Failed to fetch page");
             return None;
         }
     };
-    
+
     let text = match response.text().await {
         Ok(t) => t,
         Err(e) => {
-            eprintln!("DEBUG: Failed to read response text: {}", e);
+            warn!(error = %e, "Failed to read response text");
             return None;
         }
     };
-    
+
     let document = Html::parse_document(&text);
 
     // Look for h1 tag which typically contains "Artist - Track Title"
     let h1_selector = match Selector::parse("h1") {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("DEBUG: Failed to parse h1 selector: {:?}", e);
+            warn!(error = ?e, "Failed to parse h1 selector");
             return None;
         }
     };
@@ -197,12 +198,12 @@ async fn fetch_track_title(url: &str) -> Option<String> {
 
         // Skip if it's empty or looks like a navigation element
         if !trimmed.is_empty() && trimmed.contains('-') && !trimmed.contains("Inflyte") {
-            eprintln!("DEBUG: Found track title: {}", trimmed);
+            debug!(title = %trimmed, "Found track title");
             return Some(trimmed.to_string());
         }
     }
 
-    eprintln!("DEBUG: No track title found in h1 tags");
+    debug!("No track title found in h1 tags");
     None
 }
 
@@ -235,10 +236,10 @@ async fn fetch_dj_list(url: &str) -> Result<HashSet<DjSupport>> {
             if let Some(mut next_element) = h3.next_sibling() {
                 loop {
                     // Check if we've hit another h3 or end of support section
-                    if let Some(_element_ref) = next_element.value().as_element() {
-                        if _element_ref.name() == "h3" {
-                            break;
-                        }
+                    if let Some(_element_ref) = next_element.value().as_element()
+                        && _element_ref.name() == "h3"
+                    {
+                        break;
                     }
 
                     // Look for individual DJ profile sections
@@ -375,8 +376,8 @@ async fn load_previous_djs(config: &Config, campaign: &Campaign) -> Result<HashS
                 }
 
                 if let Ok(old_storage) = serde_json::from_str::<OldDjStorage>(&content_str) {
-                    println!(
-                        "Migrating old DJ storage format to new format with comment/rating support..."
+                    info!(
+                        "Migrating old DJ storage format to new format with comment/rating support"
                     );
                     let migrated: HashSet<DjSupport> = old_storage
                         .djs
@@ -639,9 +640,9 @@ async fn start_http_server(state: AppState, port: u16) {
         .await
         .expect("Failed to bind HTTP server");
 
-    println!("🌐 HTTP server listening on http://{}", addr);
-    println!("   - Health: http://{}/health", addr);
-    println!("   - Campaigns: http://{}/campaigns\n", addr);
+    info!(address = %addr, "HTTP server listening");
+    info!("Health endpoint: http://{}/health", addr);
+    info!("Campaigns endpoint: http://{}/campaigns", addr);
 
     axum::serve(listener, app)
         .await
@@ -654,20 +655,20 @@ async fn check_for_new_djs(
     campaign: &Campaign,
     state: Option<&AppState>,
 ) -> Result<()> {
-    println!("Checking {} for new DJs...", campaign.name);
+    info!(campaign = %campaign.name, "Checking for new DJs");
 
     let current_djs = fetch_dj_list(&campaign.url).await?;
     let previous_djs = load_previous_djs(config, campaign).await?;
 
     if previous_djs.is_empty() {
-        println!(
-            "Initial run for {} - found {} DJs",
-            campaign.name,
-            current_djs.len()
+        info!(
+            campaign = %campaign.name,
+            count = current_djs.len(),
+            "Initial run - found DJs"
         );
-        println!("Current DJs: {:?}", current_djs);
+        debug!(djs = ?current_djs, "Current DJs");
         save_djs(config, campaign, &current_djs).await?;
-        println!("✅ Saved initial DJ list for {}", campaign.name);
+        info!(campaign = %campaign.name, "Saved initial DJ list");
 
         // Update campaign stats
         if let Some(state) = state {
@@ -679,45 +680,47 @@ async fn check_for_new_djs(
         let new_djs: Vec<_> = current_djs.difference(&previous_djs).collect();
 
         if !new_djs.is_empty() {
-            println!("\n🚨 ALERT: New DJ support detected for {}!", campaign.name);
-            println!("═══════════════════════════════");
+            info!(
+                campaign = %campaign.name,
+                count = new_djs.len(),
+                "🚨 ALERT: New DJ support detected!"
+            );
             for dj in &new_djs {
-                let mut line = format!("  ✨ {}", dj.name);
+                let mut line = format!("✨ {}", dj.name);
                 if let Some(stars) = dj.stars {
                     line.push_str(&format!(" {}", "⭐".repeat(stars as usize)));
                 }
                 if let Some(comment) = &dj.comment {
-                    line.push_str(&format!("\n     💬 \"{}\"", comment));
+                    line.push_str(&format!(" - \"{}\"", comment));
                 }
-                println!("{}", line);
+                info!("{}", line);
             }
-            println!("═══════════════════════════════\n");
 
             // Send email notification
             if let Err(e) = send_email_alert(config, campaign, &new_djs).await {
-                eprintln!("Failed to send email alert: {}", e);
+                error!(error = %e, "Failed to send email alert");
             } else {
-                println!("✅ Email notification sent to {}", config.recipient_email);
+                info!(recipient = %config.recipient_email, "Email notification sent");
             }
         } else {
-            println!(
-                "No new DJs found for {}. Total: {}",
-                campaign.name,
-                current_djs.len()
+            info!(
+                campaign = %campaign.name,
+                total = current_djs.len(),
+                "No new DJs found"
             );
 
             // Debug: Show a few examples of what we're tracking
             if !current_djs.is_empty() {
-                println!("Sample of tracked DJs:");
+                debug!("Sample of tracked DJs:");
                 for (i, dj) in current_djs.iter().take(5).enumerate() {
-                    let mut line = format!("  {}. {}", i + 1, dj.name);
+                    let mut line = format!("{}. {}", i + 1, dj.name);
                     if let Some(stars) = dj.stars {
                         line.push_str(&format!(" ({}⭐)", stars));
                     }
                     if let Some(comment) = &dj.comment {
                         line.push_str(&format!(" - \"{}\"", comment));
                     }
-                    println!("{}", line);
+                    debug!("{}", line);
                 }
             }
         }
@@ -735,16 +738,24 @@ async fn check_for_new_djs(
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Initialize tracing subscriber
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
+
     // Parse command-line arguments
     let args = Args::parse();
 
-    eprintln!("DEBUG: Parsed arguments");
+    debug!("Parsed arguments");
 
     // Collect URLs from both command-line args and file
     let mut urls = args.url.clone();
 
     if let Some(file_path) = &args.file {
-        eprintln!("DEBUG: Reading URLs from file: {:?}", file_path);
+        debug!(path = ?file_path, "Reading URLs from file");
         let file_urls = read_urls_from_file(file_path)?;
         urls.extend(file_urls);
     }
@@ -753,68 +764,62 @@ async fn main() -> Result<()> {
     let mut seen = HashSet::new();
     urls.retain(|url| seen.insert(url.clone()));
 
-    eprintln!("DEBUG: Total URLs collected: {}", urls.len());
+    debug!(count = urls.len(), "Total URLs collected");
 
     if urls.is_empty() {
         anyhow::bail!("At least one URL must be provided via --url or --file");
     }
 
-    println!("🎵 Inflyte DJ Monitor Starting...");
-    println!("Monitoring {} campaign(s):\n", urls.len());
+    info!("🎵 Inflyte DJ Monitor Starting");
+    info!(count = urls.len(), "Monitoring campaigns");
 
-    eprintln!("DEBUG: Loading configuration from environment");
+    debug!("Loading configuration from environment");
 
     // Load configuration from environment variables
     let mut config = Config::from_env(urls)?;
 
-    eprintln!("DEBUG: Configuration loaded successfully");
+    debug!("Configuration loaded successfully");
 
-    eprintln!("DEBUG: Configuration loaded successfully");
-
-    println!("Configuration:");
-    println!("  Azure Storage Account: {}", config.storage_account);
-    println!("  Azure Container: {}", config.storage_container);
-    println!("  Blob Name Prefix: {}", config.blob_name_prefix);
-    println!("  Email To: {}", config.recipient_email);
-    println!("  Email From: {}", config.from_email);
-    println!("  Mailgun Domain: {}", config.mailgun_domain);
-    println!(
-        "  Check Interval: {} minutes\n",
+    info!("Configuration:");
+    info!("  Azure Storage Account: {}", config.storage_account);
+    info!("  Azure Container: {}", config.storage_container);
+    info!("  Blob Name Prefix: {}", config.blob_name_prefix);
+    info!("  Email To: {}", config.recipient_email);
+    info!("  Email From: {}", config.from_email);
+    info!("  Mailgun Domain: {}", config.mailgun_domain);
+    info!(
+        "  Check Interval: {} minutes",
         config.check_interval_minutes
     );
 
-    eprintln!(
-        "DEBUG: Fetching track information for {} campaigns",
-        config.campaigns.len()
+    debug!(
+        campaigns = config.campaigns.len(),
+        "Fetching track information"
     );
 
     // Fetch track titles for all campaigns
-    println!("Fetching track information...");
+    info!("Fetching track information");
     for campaign in &mut config.campaigns {
-        eprintln!("DEBUG: Fetching title for {}", campaign.url);
+        debug!(url = %campaign.url, "Fetching title");
         if let Some(title) = fetch_track_title(&campaign.url).await {
             campaign.track_title = Some(title);
         }
     }
-    println!();
 
-    eprintln!("DEBUG: Track information fetched");
+    debug!("Track information fetched");
 
-    eprintln!("DEBUG: Track information fetched");
-
-    println!("Campaigns:");
+    info!("Campaigns:");
     for campaign in &config.campaigns {
         if let Some(title) = &campaign.track_title {
-            println!("  • {} ({})", title, campaign.url);
+            info!("  • {} ({})", title, campaign.url);
         } else {
-            println!("  • {} ({})", campaign.name, campaign.url);
+            info!("  • {} ({})", campaign.name, campaign.url);
         }
     }
-    println!();
 
-    println!("Azure Blob Storage configured\n");
+    info!("Azure Blob Storage configured");
 
-    eprintln!("DEBUG: Creating application state");
+    debug!("Creating application state");
 
     // Create shared application state
     let app_state = AppState {
@@ -822,7 +827,7 @@ async fn main() -> Result<()> {
         campaign_stats: Arc::new(RwLock::new(Vec::new())),
     };
 
-    eprintln!("DEBUG: Starting HTTP server on port {}", config.http_port);
+    debug!(port = config.http_port, "Starting HTTP server");
 
     // Start HTTP server in background
     let http_port = config.http_port;
@@ -831,38 +836,35 @@ async fn main() -> Result<()> {
         start_http_server(server_state, http_port).await;
     });
 
-    eprintln!("DEBUG: HTTP server spawned");
+    debug!("HTTP server spawned");
 
     // Give the server a moment to start
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    eprintln!(
-        "DEBUG: Running initial checks for {} campaigns",
-        config.campaigns.len()
-    );
+    debug!(campaigns = config.campaigns.len(), "Running initial checks");
 
     // Run initial check for all campaigns
     for campaign in &config.campaigns {
-        eprintln!("DEBUG: Checking campaign: {}", campaign.name);
+        debug!(campaign = %campaign.name, "Checking campaign");
         if let Err(e) = check_for_new_djs(&config, campaign, Some(&app_state)).await {
-            eprintln!("Error during check for {}: {}", campaign.name, e);
+            error!(campaign = %campaign.name, error = %e, "Error during check");
         }
     }
 
-    eprintln!("DEBUG: Initial checks complete, starting periodic loop");
+    debug!("Initial checks complete, starting periodic loop");
 
     // Set up periodic checks
     let mut interval = time::interval(Duration::from_secs(config.check_interval_minutes * 60));
     interval.tick().await; // First tick completes immediately
 
-    eprintln!("DEBUG: Entering main monitoring loop");
+    info!("Entering main monitoring loop");
 
     loop {
         interval.tick().await;
-        eprintln!("DEBUG: Running periodic check");
+        debug!("Running periodic check");
         for campaign in &config.campaigns {
             if let Err(e) = check_for_new_djs(&config, campaign, Some(&app_state)).await {
-                eprintln!("Error during check for {}: {}", campaign.name, e);
+                error!(campaign = %campaign.name, error = %e, "Error during check");
             }
         }
     }

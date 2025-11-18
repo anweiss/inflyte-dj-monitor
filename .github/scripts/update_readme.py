@@ -18,26 +18,17 @@ def main():
         
         # Generate campaign table
         table_rows = []
-        table_rows.append("| Track | DJs | Last Checked |")
-        table_rows.append("|-------|-----|--------------|")
+        table_rows.append("| Track | DJs |")
+        table_rows.append("|-------|-----|")
         
         for campaign in campaigns:
             name = campaign.get('name', 'Unknown')
             url = campaign.get('url', '#')
             track = campaign.get('track_title') or name
             dj_count = campaign.get('dj_count', 0)
-            last_checked = campaign.get('last_checked', 'N/A')
-            
-            # Format timestamp
-            if last_checked and last_checked != 'N/A':
-                try:
-                    dt = datetime.fromisoformat(last_checked.replace('Z', '+00:00'))
-                    last_checked = dt.strftime('%Y-%m-%d %H:%M')
-                except:
-                    pass
             
             # Use track title as link text, fallback to campaign name if no title
-            table_rows.append(f"| [{track}]({url}) | {dj_count} | {last_checked} |")
+            table_rows.append(f"| [{track}]({url}) | {dj_count} |")
         
         # Create status section
         now = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
