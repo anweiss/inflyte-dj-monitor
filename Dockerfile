@@ -6,10 +6,17 @@ WORKDIR /usr/src/inflyte
 # Copy manifests
 COPY Cargo.toml ./
 
-# Copy source code
+# Create a dummy main.rs to build dependencies first
+RUN mkdir -p src && \
+    echo "fn main() {}" > src/main.rs && \
+    cargo build --release && \
+    rm -rf src target/release/inflyte*
+
+# Copy actual source code
 COPY src ./src
 
 # Build the application in release mode
+# This will reuse cached dependencies from the previous layer
 RUN cargo build --release
 
 # Runtime stage
