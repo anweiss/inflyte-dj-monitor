@@ -7,11 +7,11 @@ A Rust tool that periodically scrapes multiple Inflyte campaign URLs and monitor
 **Status:** 🟢 Active  
 **Total Campaigns:** 1  
 **Check Interval:** Every 60 minutes  
-**Last Updated:** 2025-11-20 18:07 UTC
+**Last Updated:** 2025-11-22 18:06 UTC
 
 | Track | DJs |
 |-------|-----|
-| [Andrew Weiss, Sinéad McCarthy - Feeling Alive](https://inflyteapp.com/r/pmqtne) | 38 |
+| [Andrew Weiss, Sinéad McCarthy - Feeling Alive](https://inflyteapp.com/r/pmqtne) | 39 |
 
 > This section is automatically updated when new DJs are added to campaigns.
 
