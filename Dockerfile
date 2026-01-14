@@ -24,7 +24,7 @@ FROM debian:bookworm-slim
 
 # Install CA certificates and OpenSSL for HTTPS requests
 RUN apt-get update && \
-    apt-get install -y ca-certificates libssl3 && \
+    apt-get install -y ca-certificates libssl3 file && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy the binary from builder
@@ -43,4 +43,4 @@ WORKDIR /home/inflyte
 # 3. Pass --url flags directly
 ENV RUST_BACKTRACE=full
 ENV RUST_LOG=debug
-CMD ["sh", "-c", "echo 'Running inflyte...' && if [ -f urls.txt ]; then inflyte --file urls.txt 2>&1; else inflyte 2>&1; fi; echo 'Exit code:' $?"]
+CMD ["sh", "-c", "echo 'Binary info:' && file /usr/local/bin/inflyte && echo 'Testing execution:' && /usr/local/bin/inflyte --help 2>&1 || echo 'Help failed' && echo '---' && echo 'Running inflyte...' && if [ -f urls.txt ]; then inflyte --file urls.txt 2>&1; else inflyte 2>&1; fi; echo 'Exit code:' $?"]
