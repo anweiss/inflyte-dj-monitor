@@ -22,9 +22,9 @@ RUN cargo build --release
 # Runtime stage
 FROM debian:bookworm-slim
 
-# Install CA certificates for HTTPS requests
+# Install CA certificates and OpenSSL for HTTPS requests
 RUN apt-get update && \
-    apt-get install -y ca-certificates && \
+    apt-get install -y ca-certificates libssl3 && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy the binary from builder
