@@ -163,7 +163,7 @@ Add the following secrets:
 
 | Secret Name | Value | How to Get |
 |------------|-------|------------|
-| `INFLYTE_URLS` | `https://inflyteapp.com/r/campaign1,https://inflyteapp.com/r/campaign2` | Your campaign URLs (comma-separated) - Optional if using URLs file |
+| `AZURE_CLIENT_ID` | From `$APP_ID` above | The app registration client ID |
 | `AZURE_CLIENT_ID` | From `$APP_ID` above | The app registration client ID |
 | `AZURE_TENANT_ID` | `az account show --query tenantId -o tsv` | Your Azure tenant ID |
 | `AZURE_SUBSCRIPTION_ID` | `az account show --query id -o tsv` | Your subscription ID |
@@ -182,9 +182,15 @@ Add the following secrets:
 
 You can configure campaign URLs in two ways:
 
-**Option 1: Environment Variable** (via GitHub Secret `INFLYTE_URLS` )
-* Set comma-separated URLs in the secret
+**Option 1: Environment Variable** (via GitHub Variable `INFLYTE_URLS` )
+* Set comma-separated URLs in the repository variable (Settings → Secrets and variables → Actions → Variables)
 * Simple for a few campaigns
+* When the variable is updated, trigger redeployment by running:
+  
+
+```bash
+  gh api repos/OWNER/REPO/dispatches -f event_type=inflyte-urls-updated
+  ```
 
 **Option 2: URLs File** (recommended for many campaigns)
 * Create a `urls.txt` file in your repository

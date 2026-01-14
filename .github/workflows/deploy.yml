@@ -5,6 +5,8 @@ on:
     branches:
       - main
   workflow_dispatch:
+  repository_dispatch:
+    types: [inflyte-urls-updated]
 
 permissions:
   id-token: write
@@ -99,7 +101,7 @@ jobs:
           --ip-address Public \
           --ports 8080 \
           --environment-variables \
-            INFLYTE_URLS=${{ secrets.INFLYTE_URLS }} \
+            INFLYTE_URLS=${{ vars.INFLYTE_URLS }} \
             AZURE_STORAGE_ACCOUNT=${{ secrets.AZURE_STORAGE_ACCOUNT }} \
             AZURE_STORAGE_CONTAINER=${{ secrets.AZURE_STORAGE_CONTAINER }} \
             AZURE_BLOB_NAME_PREFIX=${{ secrets.AZURE_BLOB_NAME_PREFIX }} \

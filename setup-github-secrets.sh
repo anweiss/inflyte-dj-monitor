@@ -173,14 +173,18 @@ if [ -f .env ]; then
     read -p "URLs: " INFLYTE_URLS_INPUT
     
     if [ -z "$INFLYTE_URLS_INPUT" ]; then
-        echo "⚠️  No URLs provided, using default from .env or example"
-        INFLYTE_URLS="${INFLYTE_URL:-https://inflyteapp.com/r/pmqtne}"
+        echo "⚠️  No URLs provided, using default example"
+        INFLYTE_URLS="https://inflyteapp.com/r/pmqtne"
     else
         INFLYTE_URLS="$INFLYTE_URLS_INPUT"
     fi
     
-    gh secret set INFLYTE_URLS --body "$INFLYTE_URLS" --repo "$REPO"
-    echo "✅ Secret INFLYTE_URLS set"
+    gh variable set INFLYTE_URLS --body "$INFLYTE_URLS" --repo "$REPO"
+    echo "✅ Variable INFLYTE_URLS set"
+    
+    # Trigger redeployment if the variable was updated
+    echo "🚀 Triggering redeployment..."
+    gh api repos/$REPO/dispatches -f event_type=inflyte-urls-updated 2>/dev/null || echo "ℹ️  Note: Could not trigger redeployment. Run the workflow manually if needed."
     
     gh secret set MAILGUN_DOMAIN --body "$MAILGUN_DOMAIN" --repo "$REPO"
     echo "✅ Secret MAILGUN_DOMAIN set"
@@ -199,7 +203,7 @@ if [ -f .env ]; then
 else
     echo "⚠️  .env file not found. Please set Mailgun secrets manually:"
     echo ""
-    echo "   gh secret set INFLYTE_URLS --body 'https://inflyteapp.com/r/campaign1,https://inflyteapp.com/r/campaign2'"
+    echo "   gh variable set INFLYTE_URLS --body 'https://inflyteapp.com/r/campaign1,https://inflyteapp.com/r/campaign2'"
     echo "   gh secret set MAILGUN_DOMAIN --body 'your-domain.mailgun.org'"
     echo "   gh secret set MAILGUN_API_KEY --body 'your-api-key'"
     echo "   gh secret set RECIPIENT_EMAIL --body 'your-email@example.com'"
