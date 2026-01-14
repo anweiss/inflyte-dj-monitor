@@ -41,4 +41,4 @@ WORKDIR /home/inflyte
 # 1. INFLYTE_URLS environment variable (comma-separated)
 # 2. Mount a urls.txt file at /home/inflyte/urls.txt and use --file flag
 # 3. Pass --url flags directly
-CMD ["sh", "-c", "echo 'Starting inflyte...' && echo 'Checking binary:' && ls -la /usr/local/bin/inflyte && echo 'Library dependencies:' && ldd /usr/local/bin/inflyte 2>&1 || true && echo 'Running inflyte...' && if [ -f urls.txt ]; then exec inflyte --file urls.txt; else exec inflyte; fi"]
+CMD ["sh", "-c", "echo 'Environment:' && env | grep -E '^(INFLYTE|AZURE|MAILGUN|RECIPIENT|FROM|CHECK|HTTP)' && echo '---' && echo 'Running inflyte with output capture...' && if [ -f urls.txt ]; then inflyte --file urls.txt 2>&1; else inflyte 2>&1; fi; echo 'Exit code:' $?"]
