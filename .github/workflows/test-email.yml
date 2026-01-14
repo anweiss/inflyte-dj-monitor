@@ -27,6 +27,8 @@ on:
 jobs:
   send-test-email:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
     - name: Checkout repository
