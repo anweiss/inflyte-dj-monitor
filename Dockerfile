@@ -3,21 +3,16 @@ FROM rust:1.91 AS builder
 
 WORKDIR /usr/src/inflyte
 
-# Copy manifests
+# Copy manifests and source code together to avoid caching issues
 COPY Cargo.toml ./
-
-# Create a dummy main.rs to build dependencies first
-RUN mkdir -p src && \
-    echo "fn main() {}" > src/main.rs && \
-    cargo build --release && \
-    rm -rf src target/release/inflyte*
-
-# Copy actual source code
 COPY src ./src
 
 # Build the application in release mode
-# This will reuse cached dependencies from the previous layer
 RUN cargo build --release
+
+# Verify the binary was built with all dependencies
+RUN ls -la target/release/inflyte && \
+    ldd target/release/inflyte || true
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -43,4 +38,4 @@ WORKDIR /home/inflyte
 # 3. Pass --url flags directly
 ENV RUST_BACKTRACE=full
 ENV RUST_LOG=debug
-CMD ["sh", "-c", "echo 'Binary info:' && file /usr/local/bin/inflyte && echo 'Testing execution:' && /usr/local/bin/inflyte --help 2>&1 || echo 'Help failed' && echo '---' && echo 'Running inflyte...' && if [ -f urls.txt ]; then inflyte --file urls.txt 2>&1; else inflyte 2>&1; fi; echo 'Exit code:' $?"]
+CMD ["sh", "-c", "echo 'Testing version:' && /usr/local/bin/inflyte --version 2>&1 && echo '---' && echo 'Testing with env var:' && /usr/local/bin/inflyte 2>&1; EXIT=$?; echo 'Exit code:' $EXIT; sleep 5"]
