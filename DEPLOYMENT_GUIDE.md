@@ -190,7 +190,7 @@ You can configure campaign URLs in two ways:
 
 ```bash
   gh api repos/OWNER/REPO/dispatches -f event_type=inflyte-urls-updated
-  ```
+```
 
 **Option 2: URLs File** (recommended for many campaigns)
 * Create a `urls.txt` file in your repository
@@ -217,6 +217,7 @@ git push origin main
 ```
 
 GitHub Actions will automatically:
+
 1. Build the Docker image
 2. Push to Azure Container Registry
 3. Deploy to Azure Container Instances
