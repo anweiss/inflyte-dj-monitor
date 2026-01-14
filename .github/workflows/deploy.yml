@@ -110,9 +110,7 @@ jobs:
             FROM_EMAIL=${{ secrets.FROM_EMAIL }} \
             CHECK_INTERVAL_MINUTES=${{ secrets.CHECK_INTERVAL_MINUTES }} \
             HTTP_PORT=8080 \
-          --secure-environment-variables \
-            AZURE_STORAGE_ACCESS_KEY=${{ secrets.AZURE_STORAGE_ACCESS_KEY }} \
-            MAILGUN_API_KEY=${{ secrets.MAILGUN_API_KEY }}
+          --secure-environment-variables AZURE_STORAGE_ACCESS_KEY=${{ secrets.AZURE_STORAGE_ACCESS_KEY }} MAILGUN_API_KEY=${{ secrets.MAILGUN_API_KEY }}
 
     - name: Verify deployment
       run: |
