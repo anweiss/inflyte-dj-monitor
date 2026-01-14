@@ -41,4 +41,4 @@ WORKDIR /home/inflyte
 # 1. INFLYTE_URLS environment variable (comma-separated)
 # 2. Mount a urls.txt file at /home/inflyte/urls.txt and use --file flag
 # 3. Pass --url flags directly
-CMD ["sh", "-c", "if [ -f urls.txt ]; then exec inflyte --file urls.txt; else exec inflyte; fi"]
+CMD ["sh", "-c", "echo 'Starting inflyte...' && echo 'Checking binary:' && ls -la /usr/local/bin/inflyte && echo 'Library dependencies:' && ldd /usr/local/bin/inflyte 2>&1 || true && echo 'Running inflyte...' && if [ -f urls.txt ]; then exec inflyte --file urls.txt; else exec inflyte; fi"]
