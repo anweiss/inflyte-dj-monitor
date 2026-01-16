@@ -7,11 +7,11 @@ A Rust tool that periodically scrapes multiple Inflyte campaign URLs and monitor
 **Status:** 🟢 Active  
 **Total Campaigns:** 1  
 **Check Interval:** Every 60 minutes  
-**Last Updated:** 2026-01-15 18:11 UTC
+**Last Updated:** 2026-01-16 00:22 UTC
 
 | Track | DJs |
 |-------|-----|
-| [Andrew Weiss - Sweet Emotion](https://inflyteapp.com/r/fy5k0q) | 22 |
+| [Andrew Weiss - Sweet Emotion](https://inflyteapp.com/r/fy5k0q) | 25 |
 
 > This section is automatically updated when new DJs are added to campaigns.
 
