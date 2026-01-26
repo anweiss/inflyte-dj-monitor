@@ -250,53 +250,125 @@ async fn fetch_dj_list(url: &str) -> Result<HashSet<DjSupport>> {
                         // Check if this element or its children contain an image (DJ profile pic)
                         let img_selector = Selector::parse("img").unwrap();
                         if elem.select(&img_selector).next().is_some() {
-                            // This is likely a DJ profile section
-                            // Extract all text content
-                            let full_text = elem.text().collect::<String>();
-                            let lines: Vec<&str> = full_text
-                                .lines()
-                                .map(|l| l.trim())
-                                .filter(|l| !l.is_empty())
+                            // Find all individual DJ profile entries within this container
+                            // Each DJ entry should have its own image element
+                            // Look for direct children or nested divs that each contain exactly one img
+                            let div_selector = Selector::parse("div").unwrap();
+                            let divs_with_img: Vec<_> = elem
+                                .select(&div_selector)
+                                .filter(|div| {
+                                    // This div has an img and represents a single DJ entry
+                                    div.select(&img_selector).next().is_some()
+                                })
                                 .collect();
 
-                            // The structure is typically:
-                            // Line 0: DJ Name (may have multiple parts)
-                            // Line 1+: Comment text
-                            // Stars: appear as ⭐ characters
+                            // If we found individual DJ containers, process each one
+                            if !divs_with_img.is_empty() {
+                                // Find the innermost divs that contain exactly one img
+                                // (to avoid processing parent containers that contain multiple profiles)
+                                let innermost_divs: Vec<_> = divs_with_img
+                                    .iter()
+                                    .filter(|div| {
+                                        // Count how many divs with images are nested inside this one
+                                        let nested_count = div
+                                            .select(&div_selector)
+                                            .filter(|inner| {
+                                                inner.select(&img_selector).next().is_some()
+                                            })
+                                            .count();
+                                        // If no nested divs with images, this is an innermost DJ entry
+                                        nested_count == 0
+                                    })
+                                    .collect();
 
-                            if lines.len() >= 2 {
-                                // Extract DJ name (first line before any emoji/stars)
-                                let name_line = lines[0];
-                                let name = name_line
-                                    .split('⭐')
-                                    .next()
-                                    .unwrap_or(name_line)
-                                    .trim()
-                                    .to_string();
+                                for dj_div in innermost_divs {
+                                    let full_text = dj_div.text().collect::<String>();
+                                    let lines: Vec<&str> = full_text
+                                        .lines()
+                                        .map(|l| l.trim())
+                                        .filter(|l| !l.is_empty())
+                                        .collect();
 
-                                // Extract comment (subsequent lines that aren't "Support from")
-                                let mut comment_parts = Vec::new();
-                                for line in &lines[1..] {
-                                    if line.starts_with("Support from") {
-                                        break;
+                                    if lines.len() >= 1 {
+                                        // Extract DJ name (first line before any emoji/stars)
+                                        let name_line = lines[0];
+                                        let name = name_line
+                                            .split('⭐')
+                                            .next()
+                                            .unwrap_or(name_line)
+                                            .trim()
+                                            .to_string();
+
+                                        // Extract comment (subsequent lines that aren't "Support from")
+                                        let mut comment_parts = Vec::new();
+                                        for line in lines.iter().skip(1) {
+                                            if line.starts_with("Support from") {
+                                                break;
+                                            }
+                                            comment_parts.push(*line);
+                                        }
+                                        let comment_text =
+                                            comment_parts.join(" ").trim().to_string();
+
+                                        // Count stars
+                                        let stars = full_text.matches('⭐').count() as u8;
+
+                                        if !name.is_empty() && name.len() < 100 {
+                                            djs.insert(DjSupport {
+                                                name,
+                                                comment: if !comment_text.is_empty() {
+                                                    Some(comment_text)
+                                                } else {
+                                                    None
+                                                },
+                                                stars: if stars > 0 { Some(stars) } else { None },
+                                            });
+                                        }
                                     }
-                                    comment_parts.push(*line);
                                 }
-                                let comment_text = comment_parts.join(" ").trim().to_string();
+                            } else {
+                                // Fallback: no nested divs found, process as single entry
+                                let full_text = elem.text().collect::<String>();
+                                let lines: Vec<&str> = full_text
+                                    .lines()
+                                    .map(|l| l.trim())
+                                    .filter(|l| !l.is_empty())
+                                    .collect();
 
-                                // Count stars
-                                let stars = full_text.matches('⭐').count() as u8;
+                                if lines.len() >= 2 {
+                                    // Extract DJ name (first line before any emoji/stars)
+                                    let name_line = lines[0];
+                                    let name = name_line
+                                        .split('⭐')
+                                        .next()
+                                        .unwrap_or(name_line)
+                                        .trim()
+                                        .to_string();
 
-                                if !name.is_empty() && name.len() < 100 {
-                                    djs.insert(DjSupport {
-                                        name,
-                                        comment: if !comment_text.is_empty() {
-                                            Some(comment_text)
-                                        } else {
-                                            None
-                                        },
-                                        stars: if stars > 0 { Some(stars) } else { None },
-                                    });
+                                    // Extract comment (subsequent lines that aren't "Support from")
+                                    let mut comment_parts = Vec::new();
+                                    for line in &lines[1..] {
+                                        if line.starts_with("Support from") {
+                                            break;
+                                        }
+                                        comment_parts.push(*line);
+                                    }
+                                    let comment_text = comment_parts.join(" ").trim().to_string();
+
+                                    // Count stars
+                                    let stars = full_text.matches('⭐').count() as u8;
+
+                                    if !name.is_empty() && name.len() < 100 {
+                                        djs.insert(DjSupport {
+                                            name,
+                                            comment: if !comment_text.is_empty() {
+                                                Some(comment_text)
+                                            } else {
+                                                None
+                                            },
+                                            stars: if stars > 0 { Some(stars) } else { None },
+                                        });
+                                    }
                                 }
                             }
                         }
